@@ -1,71 +1,96 @@
 package telegram_bot
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
 
+	"smOwd/pql"
+
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
-var subscribedUsers = make(map[int]bool)
+type UserAndMessage struct {
+	UserID int64 // Telegram user ID
+	ChatID int64 // Telegram chat ID
+	Text   string
+}
 
-// Handle incoming text messages like "/start", "/subscribe", and "/unsubscribe"
-func handleUpdates(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-	if update.Message == nil { // Ignore non-message updates
-		return
+func removeFirstCharIfPresent(s string, char rune) string {
+	// Check if the string is not empty and the first character matches the provided char
+	if len(s) > 0 && rune(s[0]) == char {
+		// Slice the string to remove the first character
+		return s[1:]
+	}
+	return s // Return the string as is if the first character doesn't match
+}
+
+// Unified function to handle both messages and inline button callbacks
+func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
+	var user_and_msg UserAndMessage
+	var msg tgbotapi.MessageConfig
+	var err error
+	skip := true
+	if update.Message != nil { // Handle regular messages like /start
+		// Extract chatID and message text
+		user_and_msg.ChatID = update.Message.Chat.ID
+		user_and_msg.UserID = int64(update.Message.From.ID)
+		user_and_msg.Text = removeFirstCharIfPresent(update.Message.Text, '/')
+		skip = false
+
+	} else if update.CallbackQuery != nil { // Handle inline button callback queries
+		user_and_msg.Text = update.CallbackQuery.Data
+		user_and_msg.UserID = int64(update.CallbackQuery.From.ID)
+		user_and_msg.ChatID = update.CallbackQuery.Message.Chat.ID
+		skip = false
+		defer bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, "Done"))
 	}
 
-	// userID := update.Message.From.ID
-	chatID := update.Message.Chat.ID
-	text := update.Message.Text
+	if !skip {
 
-	// If the user sends "/start", show the inline keyboard with subscribe/unsubscribe buttons
-	if text == "/start" {
-		msg := tgbotapi.NewMessage(chatID, "Welcome! Please choose to subscribe or unsubscribe.")
+		if pql.UserExists(db, user_and_msg.UserID) {
+			fmt.Println("User exists in db, user id: ", user_and_msg.UserID)
+		} else {
+			enabled := false
+			animeIDs := "{}"
+
+			_, err = db.Exec("INSERT INTO users (id, enabled, anime_ids) VALUES ($1, $2, $3)", user_and_msg.UserID, enabled, animeIDs)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println("User inserted successfully")
+		}
+
+		// If the user sends "/start", show the inline keyboard with subscribe/unsubscribe buttons
+		msg_str := ""
+		msg = tgbotapi.NewMessage(user_and_msg.ChatID, "")
+
+		if user_and_msg.Text == "enable" {
+			msg_str += "You have enabled subscription notifications!\n"
+		} else if user_and_msg.Text == "disable" {
+			msg_str += "You have disabled subscription notifications.\n"
+		}
+		msg_str += "Please choose one of the options:\n"
+
+		msg.Text = msg_str
 
 		// Inline keyboard for subscription options
 		keyboard := tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Subscribe", "subscribe"),
-				tgbotapi.NewInlineKeyboardButtonData("Unsubscribe", "unsubscribe"),
+				tgbotapi.NewInlineKeyboardButtonData("Enbale\nnotifications", "enable"),
+				tgbotapi.NewInlineKeyboardButtonData("Disable\nnotifications", "disable"),
+				tgbotapi.NewInlineKeyboardButtonData("Show\nsubscriptions", "subscriptions"),
 			),
 		)
 		msg.ReplyMarkup = keyboard
+
+		// Send the response message
 		bot.Send(msg)
 	}
 }
 
-// Handle callback queries (button clicks)
-func handleCallbackQuery(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-	if update.CallbackQuery == nil { // Ignore non-callback queries
-		return
-	}
-
-	callbackData := update.CallbackQuery.Data
-	userID := update.CallbackQuery.From.ID
-	chatID := update.CallbackQuery.Message.Chat.ID
-
-	var msg tgbotapi.MessageConfig
-
-	// Based on the button clicked, subscribe or unsubscribe the user
-	switch callbackData {
-	case "subscribe":
-		subscribedUsers[userID] = true
-		msg = tgbotapi.NewMessage(chatID, "You are now subscribed!")
-	case "unsubscribe":
-		delete(subscribedUsers, userID)
-		msg = tgbotapi.NewMessage(chatID, "You have unsubscribed.")
-	}
-
-	// Acknowledge the callback to remove the "loading" spinner
-	bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, "Done"))
-
-	// Send the response message
-	bot.Send(msg)
-}
-
-func StartBotAndHandleUpdates() {
+func StartBotAndHandleUpdates(db *sql.DB) {
 	// Get the Telegram bot token from an environment variable
 	token := os.Getenv("TELEGRAM_BOT_TOKEN")
 	if token == "" {
@@ -94,14 +119,6 @@ func StartBotAndHandleUpdates() {
 
 	// Main loop: process incoming updates
 	for update := range updates {
-		// Handle callback query (button clicks)
-		if update.CallbackQuery != nil {
-			handleCallbackQuery(bot, update)
-		}
-
-		// Handle regular message updates (like /start, /subscribe)
-		if update.Message != nil {
-			handleUpdates(bot, update)
-		}
+		handleUpdate(bot, update, db)
 	}
 }
