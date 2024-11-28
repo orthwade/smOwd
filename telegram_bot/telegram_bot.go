@@ -112,9 +112,9 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 				} else {
 					msg_str += "You are subscribed to notificatins about following titles:\n"
 				}
-				for _, id := range slice_anime_id {
+				for i, id := range slice_anime_id {
 					anime := search_anime.SearchAnimeById(id)
-					msg_str += "1. "
+					msg_str += strconv.Itoa(i+1) + ". "
 					msg_str += anime.Data.Animes[0].English
 					msg_str += "\n"
 				}

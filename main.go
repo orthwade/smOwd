@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 	"smOwd/pql"
-	"smOwd/telegram_bot"
+	// "smOwd/telegram_bot"
 )
 
 func TestPQL() *sql.DB {
@@ -41,7 +41,7 @@ func TestPQL() *sql.DB {
 
 	fmt.Printf("Connected to %s\n", dbName)
 
-	err = pql.CreateTable(db)
+	err = pql.CreateTableNamedUsers(db)
 	if err != nil {
 		log.Fatal(err)
 	} else {
@@ -54,5 +54,7 @@ func TestPQL() *sql.DB {
 func main() {
 	db := TestPQL()
 	defer db.Close()
-	telegram_bot.StartBotAndHandleUpdates(db)
+	// pql.DeleteColumn(db, "users", "anime_ids")
+	pql.PrintTableColumnsNamesAndTypes(db, "users")
+	// telegram_bot.StartBotAndHandleUpdates(db)
 }

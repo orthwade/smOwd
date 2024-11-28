@@ -37,12 +37,11 @@ func CreateDatabase(db *sql.DB, dbName string) error {
 	return err
 }
 
-func CreateTable(db *sql.DB) error {
+func CreateTableNamedUsers(db *sql.DB) error {
 	// Create the table with the specified table name
 	createTableSQL := `CREATE TABLE IF NOT EXISTS users (
 		id SERIAL PRIMARY KEY,
-		enabled BOOL,
-		anime_ids BIGINT[]
+		enabled BOOL
 	);`
 
 	_, err := db.Exec(createTableSQL)
@@ -152,4 +151,18 @@ func SetUser(db *sql.DB, userID int64, enabled bool, anime_id []int64) {
 		log.Fatal(err)
 	}
 	fmt.Println("User inserted or updated successfully")
+}
+
+func DeleteColumn(db *sql.DB, table_name string, column_name string) {
+	// Query to drop the anime_ids column
+	query := fmt.Sprintf(`ALTER TABLE %s DROP COLUMN %s;`, table_name, column_name)
+
+	// Execute the query
+	_, err := db.Exec(query)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Print success message
+	fmt.Printf("Column %s has been removed successfully.", column_name)
 }
