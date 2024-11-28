@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"smOwd/pql"
+	"smOwd/search_anime"
 
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 )
@@ -70,6 +71,17 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 			msg_str += "You have enabled subscription notifications!\n"
 		} else if user_and_msg.Text == "disable" {
 			msg_str += "You have disabled subscription notifications.\n"
+		} else if user_and_msg.Text == "subscriptions" {
+			slice_anime_id := pql.GetSliceAnimeId(db, user_and_msg.UserID)
+			// if len(slice_anime_id) == 0 {
+			// slice_anime_id = append(slice_anime_id, 5081)
+			// }
+			for _, id := range slice_anime_id {
+				anime := search_anime.SearchAnimeById(id)
+				msg_str += "1. "
+				msg_str += anime.Data.Animes[0].English
+				msg_str += "\n"
+			}
 		}
 		msg_str += "Please choose one of the options:\n"
 

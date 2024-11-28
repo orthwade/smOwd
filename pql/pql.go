@@ -57,6 +57,58 @@ func UserExists(db *sql.DB, userID int64) bool {
 	return exists
 }
 
+func SetEnabled(db *sql.DB, userID int64, newEnabledStatus bool) {
+	_, err := db.Exec(`
+		UPDATE users
+		SET enabled = $1
+		WHERE id = $2;`, newEnabledStatus, userID)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func AddAnimeId(db *sql.DB, userID int64, newAnimeID int64) {
+	// Update the anime_ids array for the user if the anime_id is not already present
+	_, err := db.Exec(`
+		UPDATE users
+		SET anime_ids = 
+			CASE 
+				WHEN NOT anime_ids @> ARRAY[$1] THEN array_append(anime_ids, $1)
+				ELSE anime_ids
+			END
+		WHERE id = $2;`,
+		newAnimeID, userID)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("Anime ID added if not already present.")
+}
+
+// GetSliceAnimeId retrieves the anime_ids array for a specific user
+func GetSliceAnimeId(db *sql.DB, userID int64) []int64 {
+	// Declare a slice to hold the anime_ids
+	var animeIDs pq.Int64Array // This will automatically handle the PostgreSQL array type
+
+	// Retrieve the anime_ids array for the specific user
+	err := db.QueryRow(`
+		SELECT anime_ids
+		FROM users
+		WHERE id = $1;`, userID).Scan(pq.Array(&animeIDs)) // Use pq.Array to scan the array
+	if err != nil {
+		if err == sql.ErrNoRows {
+			fmt.Println("No user found with that ID.")
+		} else {
+			log.Fatal(err)
+		}
+	} else {
+		// Print the retrieved anime_ids slice
+		fmt.Printf("Anime IDs for user %d: %v\n", userID, animeIDs)
+	}
+
+	// Convert the pq.Int64Array to a regular []int64 slice and return
+	return animeIDs
+}
+
 func SetUser(db *sql.DB, userID int64, enabled bool, anime_id []int64) {
 
 	// Insert the user, or update if a conflict on the primary key occurs

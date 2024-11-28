@@ -1,4 +1,4 @@
-package main
+package search_anime
 
 import (
 	"bytes"
@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strconv"
 )
 
 // Structure for the request body
@@ -27,7 +28,7 @@ type AnimeResponse struct {
 	} `json:"data"`
 }
 
-func SearchAnime(name string) {
+func SearchAnimeByName(name string) {
 	// GraphQL query
 	query := fmt.Sprintf(`
 		query {
@@ -90,4 +91,64 @@ func SearchAnime(name string) {
 		fmt.Printf("ID: %s\n", anime.ID)
 		fmt.Printf("URL: %s\n", anime.URL)
 	}
+}
+
+func SearchAnimeById(ID int64) AnimeResponse {
+	str_id := strconv.FormatInt(ID, 10)
+
+	// GraphQL query
+	query := fmt.Sprintf(`
+		query {
+			animes(ids: "%s") { 
+				english
+				russian
+				japanese
+				id
+				url
+			}
+		}
+	`, str_id)
+
+	// Prepare the GraphQL request body
+	reqBody := GraphQLRequest{
+		Query: query,
+	}
+
+	// Marshal the request body into JSON
+	reqBodyJSON, err := json.Marshal(reqBody)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Send the POST request
+	url := "https://shikimori.one/api/graphql" // Make sure the URL is correct for the Shkimori API
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBodyJSON))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Set the headers
+	req.Header.Set("Content-Type", "application/json")
+
+	// Send the request using the HTTP client
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	// Read the response body
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Parse the response into the AnimeResponse struct
+	var animeResp AnimeResponse
+	if err := json.Unmarshal(respBody, &animeResp); err != nil {
+		log.Fatal(err)
+	}
+
+	return animeResp
 }
