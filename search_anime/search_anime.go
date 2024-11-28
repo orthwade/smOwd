@@ -28,11 +28,11 @@ type AnimeResponse struct {
 	} `json:"data"`
 }
 
-func SearchAnimeByName(name string) {
+func SearchAnimeByName(name string) AnimeResponse {
 	// GraphQL query
 	query := fmt.Sprintf(`
 		query {
-			animes(search: "%s") { 
+			animes(search: "%s", limit: 10) { 
 				english
 				russian
 				japanese
@@ -91,6 +91,8 @@ func SearchAnimeByName(name string) {
 		fmt.Printf("ID: %s\n", anime.ID)
 		fmt.Printf("URL: %s\n", anime.URL)
 	}
+
+	return animeResp
 }
 
 func SearchAnimeById(ID int64) AnimeResponse {
