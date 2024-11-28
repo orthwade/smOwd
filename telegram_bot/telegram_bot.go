@@ -68,14 +68,23 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 		msg = tgbotapi.NewMessage(user_and_msg.ChatID, "")
 
 		if user_and_msg.Text == "enable" {
+			pql.SetEnabled(db, user_and_msg.UserID, true)
+			pql.GetEnabled(db, user_and_msg.UserID)
 			msg_str += "You have enabled subscription notifications!\n"
 		} else if user_and_msg.Text == "disable" {
+			pql.SetEnabled(db, user_and_msg.UserID, false)
+			pql.GetEnabled(db, user_and_msg.UserID)
 			msg_str += "You have disabled subscription notifications.\n"
 		} else if user_and_msg.Text == "subscriptions" {
 			slice_anime_id := pql.GetSliceAnimeId(db, user_and_msg.UserID)
 			// if len(slice_anime_id) == 0 {
 			// slice_anime_id = append(slice_anime_id, 5081)
 			// }
+			if len(slice_anime_id) == 0 {
+				msg_str += "You are not subscribed to any anime notifications.\n"
+			} else {
+				msg_str += "You are subscribed to notificatins about following titles:\n"
+			}
 			for _, id := range slice_anime_id {
 				anime := search_anime.SearchAnimeById(id)
 				msg_str += "1. "

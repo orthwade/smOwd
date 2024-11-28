@@ -65,6 +65,36 @@ func SetEnabled(db *sql.DB, userID int64, newEnabledStatus bool) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	var exists bool
+	err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", userID).Scan(&exists)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func GetEnabled(db *sql.DB, userID int64) bool {
+	var enabled bool
+	err := db.QueryRow(`
+		SELECT enabled
+		FROM users
+		WHERE id = $1;`, userID).Scan(&enabled)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			fmt.Println("No user found with that ID.")
+		} else {
+			log.Fatal(err)
+		}
+	} else {
+		var str_ string
+		if enabled {
+			str_ = "ENABLED"
+		} else {
+			str_ = "DISABLED"
+		}
+		fmt.Printf("User %d status is %s\n", userID, str_)
+	}
+
+	return enabled
 }
 
 func AddAnimeId(db *sql.DB, userID int64, newAnimeID int64) {
