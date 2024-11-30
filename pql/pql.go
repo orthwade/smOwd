@@ -166,3 +166,91 @@ func DeleteColumn(db *sql.DB, table_name string, column_name string) {
 	// Print success message
 	fmt.Printf("Column %s has been removed successfully.", column_name)
 }
+
+func IsCustomTypeCreated(db *sql.DB, custom_type_name string) bool {
+	// Check if the custom type exists
+	var exists bool
+	query := `
+        SELECT EXISTS (
+            SELECT 1
+            FROM pg_type
+            WHERE typname = $1
+        );
+    `
+	err := db.QueryRow(query, custom_type_name).Scan(&exists)
+	if err != nil {
+		log.Fatal("Failed to check if type exists:", err)
+	}
+
+	return exists
+}
+
+func CreateCustomTypeAnimeIdAndLastEpisode(db *sql.DB) {
+	// Create the custom type if it doesn't exist
+	typeName := "anime_id_and_last_episode"
+	createTypeQuery := fmt.Sprintf(`
+        CREATE TYPE %s AS (
+            anime_id INT,
+            last_episode INT
+        );
+        `, typeName)
+	_, err := db.Exec(createTypeQuery)
+	if err != nil {
+		log.Fatal("Failed to create type:", err)
+	}
+	fmt.Printf("Custom type '%s' created successfully!\n", typeName)
+}
+
+func CheckAnimeIdAndLastEpisodeColumn(db *sql.DB) {
+	alterTableQuery := `
+	ALTER TABLE users
+	ADD COLUMN IF NOT EXISTS anime_data anime_id_and_last_episode[];
+`
+	_, err := db.Exec(alterTableQuery)
+	if err != nil {
+		log.Fatal("Failed to alter table:", err)
+	}
+	fmt.Println("Table 'users' altered to add 'anime_data' column.")
+}
+
+type AnimeIDAndLastEpisode struct {
+	AnimeID     int
+	LastEpisode int
+}
+
+// GetSliceAnimeIdAndLastEpisode retrieves the anime data for a user from the database
+func GetSliceAnimeIdAndLastEpisode(db *sql.DB, userID int64) ([]AnimeIDAndLastEpisode, error) {
+	// Prepare the query to select the anime_data array for the user
+	query := `SELECT anime_data FROM users WHERE id = $1`
+
+	// Declare a variable to hold the anime data
+	var animeData []string // Use []string for scanning array of tuples
+
+	// Execute the query
+	row := db.QueryRow(query, userID)
+	if err := row.Scan(pq.Array(&animeData)); err != nil {
+		// If no data is found or any error occurs
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("no anime data found for user ID %d", userID)
+		}
+		return nil, fmt.Errorf("failed to retrieve anime data: %v", err)
+	}
+
+	// Convert the array elements into a slice of AnimeIDAndLastEpisode
+	var result []AnimeIDAndLastEpisode
+	for _, elem := range animeData {
+		// Assuming the array elements are in the format "(anime_id, last_episode)"
+		var animeID, lastEpisode int
+		// Parsing the array element into AnimeIDAndLastEpisode struct
+		if _, err := fmt.Sscanf(elem, "(%d,%d)", &animeID, &lastEpisode); err != nil {
+			log.Printf("Error parsing array element %v: %v", elem, err)
+			continue
+		}
+		result = append(result, AnimeIDAndLastEpisode{
+			AnimeID:     animeID,
+			LastEpisode: lastEpisode,
+		})
+	}
+
+	return result, nil
+}

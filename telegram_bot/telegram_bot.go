@@ -35,6 +35,7 @@ type HandleUpdateMode int
 const (
 	HandleUpdateModeBasic HandleUpdateMode = iota
 	HandleUpdateModeSearch
+	HandleUpdateModeSubscribe
 )
 
 // String method for Color type to print meaningful names
@@ -43,6 +44,35 @@ func (c HandleUpdateMode) String() string {
 }
 
 var usersMapHandleUpdMode = make(map[int64]HandleUpdateMode)
+
+// Function to create an inline keyboard from listText and maxCols
+func CreateInlineKeyboard(listText []string, maxCols int) tgbotapi.InlineKeyboardMarkup {
+	// Create an empty slice to hold the keyboard rows
+	var keyboard [][]tgbotapi.InlineKeyboardButton
+
+	// Create buttons and group them into rows of maxCols
+	for i := 0; i < len(listText); i += maxCols {
+		// Get the slice of text for the current row
+		end := i + maxCols
+		if end > len(listText) {
+			end = len(listText)
+		}
+		row := listText[i:end]
+
+		// Create InlineKeyboardButton for each text in the row
+		var buttons []tgbotapi.InlineKeyboardButton
+		for _, text := range row {
+			button := tgbotapi.NewInlineKeyboardButtonData(text, text) // Using text as callback data
+			buttons = append(buttons, button)
+		}
+
+		// Add the row of buttons to the keyboard
+		keyboard = append(keyboard, buttons)
+	}
+
+	// Return the inline keyboard markup
+	return tgbotapi.NewInlineKeyboardMarkup(keyboard...)
+}
 
 // Unified function to handle both messages and inline button callbacks
 func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
@@ -103,21 +133,26 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 				pql.GetEnabled(db, user_and_msg.UserID)
 				msg_str += "You have disabled subscription notifications.\n"
 			} else if user_and_msg.Text == "subscriptions" {
-				slice_anime_id := pql.GetSliceAnimeId(db, user_and_msg.UserID)
+				slice_anime_id_and_last_episode, err := pql.GetSliceAnimeIdAndLastEpisode(db, user_and_msg.UserID)
+
+				if err != nil {
+					fmt.Println("Error reading your list of subscritions")
+				}
 				// if len(slice_anime_id) == 0 {
 				// slice_anime_id = append(slice_anime_id, 5081)
 				// }
-				if len(slice_anime_id) == 0 {
+				if len(slice_anime_id_and_last_episode) == 0 {
 					msg_str += "You are not subscribed to any anime notifications.\n"
 				} else {
 					msg_str += "You are subscribed to notificatins about following titles:\n"
+					for i, id_and_last_episode := range slice_anime_id_and_last_episode {
+						anime := search_anime.SearchAnimeById(int64(id_and_last_episode.AnimeID))
+						msg_str += strconv.Itoa(i+1) + ". "
+						msg_str += anime.Data.Animes[0].English
+						msg_str += "\n"
+					}
 				}
-				for i, id := range slice_anime_id {
-					anime := search_anime.SearchAnimeById(id)
-					msg_str += strconv.Itoa(i+1) + ". "
-					msg_str += anime.Data.Animes[0].English
-					msg_str += "\n"
-				}
+
 			} else if user_and_msg.Text == "search" {
 				usersMapHandleUpdMode[user_and_msg.UserID] = HandleUpdateModeSearch
 				msg_str += "Enter a name of anime in english to search it.\n"
@@ -147,10 +182,20 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 		} else if handle_update_mode == HandleUpdateModeSearch {
 			animeResp := search_anime.SearchAnimeByName(user_and_msg.Text)
 
-			for i, anime := range animeResp.Data.Animes {
-				msg_str += strconv.Itoa(i+1) + ". " + anime.English + "/ " + anime.Japanese + "\n"
-				msg_str += anime.URL + "\n"
+			if len(animeResp.Data.Animes) > 0 {
+				var list_button_text []string
+				for i, anime := range animeResp.Data.Animes {
+					msg_str += strconv.Itoa(i+1) + ". " + anime.English + "/ " + anime.Japanese + "\n"
+					msg_str += anime.URL + "\n"
+					list_button_text = append(list_button_text, strconv.Itoa(i+1))
+				}
+
+				msg_str += "Choose the number of anime to subscribe to:\n"
+				keyboard = CreateInlineKeyboard(list_button_text, 5)
+				msg.ReplyMarkup = keyboard
+
 			}
+
 			usersMapHandleUpdMode[user_and_msg.UserID] = HandleUpdateModeBasic
 
 		}

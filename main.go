@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 	"smOwd/pql"
-	// "smOwd/telegram_bot"
+	"smOwd/telegram_bot"
 )
 
 func TestPQL() *sql.DB {
@@ -48,6 +48,16 @@ func TestPQL() *sql.DB {
 		fmt.Println("Table users created successfully")
 	}
 
+	custom_type_name := "anime_id_and_last_episode"
+
+	if pql.IsCustomTypeCreated(db, custom_type_name) {
+		fmt.Printf("Column %s is already created\n", custom_type_name)
+	} else {
+		fmt.Printf("Column %s is not created\n", custom_type_name)
+		pql.CreateCustomTypeAnimeIdAndLastEpisode(db)
+	}
+	pql.CheckAnimeIdAndLastEpisodeColumn(db)
+
 	return db
 }
 
@@ -56,5 +66,5 @@ func main() {
 	defer db.Close()
 	// pql.DeleteColumn(db, "users", "anime_ids")
 	pql.PrintTableColumnsNamesAndTypes(db, "users")
-	// telegram_bot.StartBotAndHandleUpdates(db)
+	telegram_bot.StartBotAndHandleUpdates(db)
 }
