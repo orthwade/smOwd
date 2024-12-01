@@ -1,0 +1,32 @@
+# Step 1: Use a Golang base image
+FROM golang:1.20 AS builder
+
+# Step 2: Set the working directory in the container
+WORKDIR /app
+
+# Step 3: Copy the Go modules manifests (for dependency management)
+COPY go.mod go.sum ./
+
+# Step 4: Download the dependencies
+RUN go mod tidy
+
+# Step 5: Copy the entire project into the container
+COPY . .
+
+# Step 6: Build the Go application
+RUN go build -o main .
+
+# Step 7: Use a smaller image to run the application
+FROM debian:bullseye-slim
+
+# Step 8: Install required dependencies (if any)
+RUN apt-get update && apt-get install -y libpq-dev
+
+# Step 9: Copy the built Go binary from the builder image
+COPY --from=builder /app/main /app/main
+
+# Step 10: Expose the port the app will run on
+EXPOSE 8080
+
+# Step 11: Command to run the application
+CMD ["/app/main"]

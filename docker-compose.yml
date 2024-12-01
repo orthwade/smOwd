@@ -1,0 +1,30 @@
+version: "3.9"
+services:
+  # Service for the Go application
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=<your-postgres-password-here>
+      - TELEGRAM_BOT_TOKEN=<your-telegram-bot-token-here>  # Add the bot token here
+    depends_on:
+      - postgres
+
+  # Service for PostgreSQL
+  postgres:
+    image: postgres:latest
+    environment:
+      - PQL_USER_NAME=postgres
+      - PQL_PASSWORD=<your-postgres-password-here>
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+# Volumes to persist PostgreSQL data
+volumes:
+  postgres_data:
