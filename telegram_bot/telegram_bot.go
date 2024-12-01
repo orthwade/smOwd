@@ -129,6 +129,7 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 		skip = false
 		defer bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, "Done"))
 	}
+	pql.SetChatID(db, user_and_msg.UserID, user_and_msg.ChatID)
 
 	if !skip {
 
@@ -272,15 +273,40 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 	}
 }
 
-func SignalAnimeComplete(db *sql.DB, userID int64, animeName string) {
+func SignalAnimeComplete(bot *tgbotapi.BotAPI, chatID int64, animeName string) {
+	var msg_str string
+	var keyboard tgbotapi.InlineKeyboardMarkup
+	var msg tgbotapi.MessageConfig
 
+	msg = tgbotapi.NewMessage(chatID, "")
+	msg_str = animeName + " is Complete!\nSubscription will be removed.\n"
+	msg_str, keyboard, msg = GeneralMessage(msg_str, keyboard, msg)
+
+	msg.Text = msg_str
+	bot.Send(msg)
 }
 
-func SignalAnimeNewEpisodes(db *sql.DB, userID int64, animeName string, newEpisode int) {
+func SignalAnimeNewEpisodes(bot *tgbotapi.BotAPI, chatID int64, animeName string, newEpisode int) {
+	var msg_str string
+	var keyboard tgbotapi.InlineKeyboardMarkup
+	var msg tgbotapi.MessageConfig
 
+	msg = tgbotapi.NewMessage(chatID, "")
+	msg_str = animeName + " episode " + strconv.Itoa(newEpisode) + " is released!\n"
+	msg_str, keyboard, msg = GeneralMessage(msg_str, keyboard, msg)
+
+	msg.Text = msg_str
+	bot.Send(msg)
 }
 
-func processUsers(db *sql.DB) {
+func TestSignalUpdate(bot *tgbotapi.BotAPI, chatID int64) {
+	animeName := "TestAnimeName"
+	newEpisode := 777
+	SignalAnimeComplete(bot, chatID, animeName)
+	SignalAnimeNewEpisodes(bot, chatID, animeName, newEpisode)
+}
+
+func processUsers(db *sql.DB, bot *tgbotapi.BotAPI) {
 	// Query all users from the users table
 	rows, err := db.Query("SELECT id, enabled FROM users")
 	if err != nil {
@@ -316,15 +342,17 @@ func processUsers(db *sql.DB) {
 				storedAnimeLastEpisode := id_and_last_episode.LastEpisode
 				actualAnimeLastEpisode := anime.Data.Animes[0].EpisodesAired
 				animeStatus := anime.Data.Animes[0].Status
+				chatID := pql.GetChatID(db, userID)
 				if animeStatus == "released" {
-					SignalAnimeComplete(db, userID, animeName)
+					SignalAnimeComplete(bot, chatID, animeName)
 					pql.RemoveAnimeIdAndLastEpisode(db, userID, animeID)
 				} else if actualAnimeLastEpisode > storedAnimeLastEpisode {
-					SignalAnimeNewEpisodes(db, userID, animeName, actualAnimeLastEpisode)
+					SignalAnimeNewEpisodes(bot, chatID, animeName, actualAnimeLastEpisode)
 					pql.UpdateAnimeIdAndLastEpisode(db, userID, animeID, actualAnimeLastEpisode)
 				} else {
 					fmt.Printf("Nothing new for User %d.\n", userID)
 				}
+				// TestSignalUpdate(bot, chatID)
 			}
 		}
 
@@ -404,7 +432,7 @@ func StartBotAndHandleUpdates(db *sql.DB) {
 			handleUpdate(bot, update, db)
 		case <-processUsersChan:
 			// This block is triggered every 1 second to process users
-			processUsers(db)
+			processUsers(db, bot)
 		case <-ctx.Done():
 			// Graceful shutdown of the main loop
 			log.Println("Shutting down the bot.")

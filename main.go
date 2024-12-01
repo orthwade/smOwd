@@ -57,6 +57,7 @@ func TestPQL() *sql.DB {
 		pql.CreateCustomTypeAnimeIdAndLastEpisode(db)
 	}
 	pql.CheckAnimeIdAndLastEpisodeColumn(db)
+	pql.CheckChatIdColumn(db)
 
 	return db
 }

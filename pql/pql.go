@@ -70,6 +70,20 @@ func SetEnabled(db *sql.DB, userID int64, newEnabledStatus bool) {
 		log.Fatal(err)
 	}
 }
+func SetChatID(db *sql.DB, userID int64, chatID int64) {
+	_, err := db.Exec(`
+		UPDATE users
+		SET chat_id = $1
+		WHERE id = $2;`, chatID, userID)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var exists bool
+	err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", userID).Scan(&exists)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
 
 func GetEnabled(db *sql.DB, userID int64) bool {
 	var enabled bool
@@ -94,6 +108,22 @@ func GetEnabled(db *sql.DB, userID int64) bool {
 	}
 
 	return enabled
+}
+func GetChatID(db *sql.DB, userID int64) int64 {
+	var chatID int64
+	err := db.QueryRow(`
+		SELECT chat_id
+		FROM users
+		WHERE id = $1;`, userID).Scan(&chatID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			fmt.Println("No user found with that ID.")
+		} else {
+			log.Fatal(err)
+		}
+	}
+
+	return chatID
 }
 
 func AddAnimeId(db *sql.DB, userID int64, newAnimeID int64) {
@@ -211,6 +241,22 @@ func CheckAnimeIdAndLastEpisodeColumn(db *sql.DB) {
 		log.Fatal("Failed to alter table:", err)
 	}
 	fmt.Println("Table 'users' altered to add 'anime_data' column.")
+}
+
+func CheckChatIdColumn(db *sql.DB) {
+	// Query to add 'chat_id' column if it doesn't exist
+	alterTableQuery := `
+		ALTER TABLE users
+		ADD COLUMN IF NOT EXISTS chat_id BIGINT;  -- Changed to BIGINT for larger IDs
+	`
+
+	_, err := db.Exec(alterTableQuery)
+	if err != nil {
+		log.Fatal("Failed to alter table:", err)
+		return
+	}
+
+	fmt.Println("Table 'users' altered to add 'chat_id' column.")
 }
 
 type AnimeIDAndLastEpisode struct {
