@@ -604,7 +604,7 @@ func StartBotAndHandleUpdates(db *sql.DB) {
 
 	// Start a goroutine to handle periodic user processing every second
 	go func() {
-		ticker := time.NewTicker(30 * time.Second)
+		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {

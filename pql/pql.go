@@ -323,7 +323,7 @@ func AddAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int, lastEpisode
 		for _, v := range animeData {
 			// Assuming the data is in the form "(anime_id, last_episode)"
 			var animeID, lastEpisode int
-			fmt.Sscanf(v, "(%d, %d)", &animeID, &lastEpisode)
+			fmt.Sscanf(v, "(%d,%d)", &animeID, &lastEpisode)
 			currentAnimeData = append(currentAnimeData, AnimeIDAndLastEpisode{AnimeID: animeID, LastEpisode: lastEpisode})
 		}
 	}
@@ -358,10 +358,17 @@ func AddAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int, lastEpisode
 }
 
 func UpdateAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int, lastEpisode int) {
-	// Step 1: Retrieve the current anime_data for userID
+	// Step 1: Start a new transaction
+	tx, err := db.Begin()
+	if err != nil {
+		log.Fatal("Failed to start transaction:", err)
+	}
+	defer tx.Rollback() // Ensure rollback in case of an error
+
+	// Step 2: Retrieve the current anime_data for userID
 	var currentAnimeData []AnimeIDAndLastEpisode
 	query := "SELECT anime_data FROM users WHERE id = $1"
-	rows, err := db.Query(query, userID) // Get data for userID
+	rows, err := tx.Query(query, userID) // Get data for userID
 	if err != nil {
 		log.Fatal("Failed to retrieve data:", err)
 	}
@@ -369,21 +376,20 @@ func UpdateAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int, lastEpis
 
 	// Assuming anime_data is a valid PostgreSQL array of strings
 	for rows.Next() {
-		var animeData []string                                  // Slice of strings to hold the PostgreSQL array
-		if err := rows.Scan(pq.Array(&animeData)); err != nil { // Use pq.Array to scan into slice
+		var animeData []string
+		if err := rows.Scan(pq.Array(&animeData)); err != nil {
 			log.Fatal("Failed to scan rows:", err)
 		}
 
 		// Convert the array of strings into AnimeIDAndLastEpisode
 		for _, v := range animeData {
-			// Assuming the data is in the form "(anime_id, last_episode)"
 			var id, ep int
-			fmt.Sscanf(v, "(%d, %d)", &id, &ep)
+			fmt.Sscanf(v, "(%d,%d)", &id, &ep)
 			currentAnimeData = append(currentAnimeData, AnimeIDAndLastEpisode{AnimeID: id, LastEpisode: ep})
 		}
 	}
 
-	// Step 2: Update the lastEpisode for the given animeID if it exists
+	// Step 3: Update the lastEpisode for the given animeID if it exists
 	var updatedAnimeData []AnimeIDAndLastEpisode
 	animeFound := false
 	for _, anime := range currentAnimeData {
@@ -392,7 +398,6 @@ func UpdateAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int, lastEpis
 			anime.LastEpisode = lastEpisode
 			animeFound = true
 		}
-		// Append the (possibly updated) anime pair
 		updatedAnimeData = append(updatedAnimeData, anime)
 	}
 
@@ -401,21 +406,26 @@ func UpdateAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int, lastEpis
 		updatedAnimeData = append(updatedAnimeData, AnimeIDAndLastEpisode{AnimeID: animeID, LastEpisode: lastEpisode})
 	}
 
-	// Step 3: Prepare the updated anime data as a PostgreSQL array
+	// Step 4: Prepare the updated anime data as a PostgreSQL array
 	var updatedAnimeDataStrings []string
 	for _, anime := range updatedAnimeData {
 		updatedAnimeDataStrings = append(updatedAnimeDataStrings, fmt.Sprintf("(%d,%d)", anime.AnimeID, anime.LastEpisode))
 	}
 
-	// Step 4: Update the anime_data in the database with the new array
+	// Step 5: Update the anime_data in the database within the transaction
 	updateQuery := `
 		UPDATE users
 		SET anime_data = $1
 		WHERE id = $2;
 	`
-	_, err = db.Exec(updateQuery, pq.Array(updatedAnimeDataStrings), userID)
+	_, err = tx.Exec(updateQuery, pq.Array(updatedAnimeDataStrings), userID)
 	if err != nil {
 		log.Fatal("Failed to update anime_data:", err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(); err != nil {
+		log.Fatal("Failed to commit transaction:", err)
 	}
 
 	fmt.Println("Successfully updated anime data for userID:", userID)
@@ -442,7 +452,7 @@ func RemoveAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int) {
 		for _, v := range animeData {
 			// Assuming the data is in the form "(anime_id, last_episode)"
 			var id, ep int
-			fmt.Sscanf(v, "(%d, %d)", &id, &ep)
+			fmt.Sscanf(v, "(%d,%d)", &id, &ep)
 			currentAnimeData = append(currentAnimeData, AnimeIDAndLastEpisode{AnimeID: id, LastEpisode: ep})
 		}
 	}
