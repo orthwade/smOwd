@@ -511,6 +511,9 @@ func processUsers(db *sql.DB, bot *tgbotapi.BotAPI) {
 		if err := rows.Scan(&userID, &enabled); err != nil {
 			log.Fatal("Failed to scan row:", err)
 		}
+		if !enabled {
+			return
+		}
 
 		// Example processing: Print the user ID and their enabled status
 		fmt.Printf("Processing User ID: %d\n", userID)
