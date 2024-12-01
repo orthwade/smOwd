@@ -45,6 +45,9 @@ func (c HandleUpdateMode) String() string {
 
 var usersMapHandleUpdMode = make(map[int64]HandleUpdateMode)
 
+var usersMapLastAnimeIDList = make(map[int64][]int64)
+var usersMapLastAnimeNameList = make(map[int64][]string)
+
 // Function to create an inline keyboard from listText and maxCols
 func CreateInlineKeyboard(listText []string, maxCols int) tgbotapi.InlineKeyboardMarkup {
 	// Create an empty slice to hold the keyboard rows
@@ -72,6 +75,33 @@ func CreateInlineKeyboard(listText []string, maxCols int) tgbotapi.InlineKeyboar
 
 	// Return the inline keyboard markup
 	return tgbotapi.NewInlineKeyboardMarkup(keyboard...)
+}
+
+func GeneralMessage(msg_str string, keyboard tgbotapi.InlineKeyboardMarkup, msg tgbotapi.MessageConfig) (string, tgbotapi.InlineKeyboardMarkup, tgbotapi.MessageConfig) {
+	// Modify msg_str by appending the text
+	msg_str += "Please choose one of the options:\n"
+
+	// Inline keyboard for subscription options
+	keyboard = tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Enable\nnotifications", "enable"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Disable\nnotifications", "disable"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Show\nsubscriptions", "subscriptions"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Search anime by name", "search"),
+		),
+	)
+
+	// Modify the msg object by adding the keyboard to it
+	msg.ReplyMarkup = keyboard
+
+	// Return the modified values
+	return msg_str, keyboard, msg
 }
 
 // Unified function to handle both messages and inline button callbacks
@@ -159,45 +189,64 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 
 			}
 			if usersMapHandleUpdMode[user_and_msg.UserID] == HandleUpdateModeBasic {
-				msg_str += "Please choose one of the options:\n"
-
-				// Inline keyboard for subscription options
-				keyboard = tgbotapi.NewInlineKeyboardMarkup(
-					tgbotapi.NewInlineKeyboardRow(
-						tgbotapi.NewInlineKeyboardButtonData("Enbale\nnotifications", "enable"),
-					),
-					tgbotapi.NewInlineKeyboardRow(
-						tgbotapi.NewInlineKeyboardButtonData("Disable\nnotifications", "disable"),
-					),
-					tgbotapi.NewInlineKeyboardRow(
-						tgbotapi.NewInlineKeyboardButtonData("Show\nsubscriptions", "subscriptions"),
-					),
-					tgbotapi.NewInlineKeyboardRow(
-						tgbotapi.NewInlineKeyboardButtonData("Search anime by name", "search"),
-					),
-				)
-				msg.ReplyMarkup = keyboard
+				msg_str, keyboard, msg = GeneralMessage(msg_str, keyboard, msg)
 			}
 
 		} else if handle_update_mode == HandleUpdateModeSearch {
 			animeResp := search_anime.SearchAnimeByName(user_and_msg.Text)
 
 			if len(animeResp.Data.Animes) > 0 {
+				incomplete_count := 0
+				LastAnimeSearchList := make([]int64, 0)
+				LastAnimeSearchListName := make([]string, 0)
+
 				var list_button_text []string
 				for i, anime := range animeResp.Data.Animes {
 					msg_str += strconv.Itoa(i+1) + ". " + anime.English + "/ " + anime.Japanese + "\n"
 					msg_str += anime.URL + "\n"
-					list_button_text = append(list_button_text, strconv.Itoa(i+1))
+					animeID, err := strconv.Atoi(anime.ID)
+					if err != nil {
+						fmt.Println("Error reading animeID")
+					}
+
+					LastAnimeSearchList = append(LastAnimeSearchList, int64(animeID))
+					LastAnimeSearchListName = append(LastAnimeSearchListName, anime.English)
+					if anime.Status != "released" {
+						incomplete_count++
+						list_button_text = append(list_button_text, strconv.Itoa(i+1))
+					} else {
+						msg_str += "Fully Released!\n"
+					}
 				}
 
-				msg_str += "Choose the number of anime to subscribe to:\n"
-				keyboard = CreateInlineKeyboard(list_button_text, 5)
-				msg.ReplyMarkup = keyboard
+				if incomplete_count == 0 {
+					msg_str += "All found animes are complete. No need for notifications.\n"
+					usersMapHandleUpdMode[user_and_msg.UserID] = HandleUpdateModeBasic
+					msg_str, keyboard, msg = GeneralMessage(msg_str, keyboard, msg)
+				} else {
+					usersMapLastAnimeIDList[user_and_msg.UserID] = LastAnimeSearchList
+					usersMapLastAnimeNameList[user_and_msg.UserID] = LastAnimeSearchListName
+
+					msg_str += "Some of the found animes are not complete\n"
+					msg_str += "You can subscribe to be notified if new episodes are aired\n"
+					msg_str += "Choose the number of anime from the list above to subscribe to:\n"
+					keyboard = CreateInlineKeyboard(list_button_text, 5)
+					msg.ReplyMarkup = keyboard
+					usersMapHandleUpdMode[user_and_msg.UserID] = HandleUpdateModeSubscribe
+				}
 
 			}
-
+		} else if usersMapHandleUpdMode[user_and_msg.UserID] == HandleUpdateModeSubscribe {
+			i, err := strconv.Atoi(user_and_msg.Text)
+			if err != nil {
+				fmt.Println("Error getting anime ID from user's message")
+			}
+			i--
+			// animeID := usersMapLastAnimeIDList[user_and_msg.UserID][i]
+			animeName := usersMapLastAnimeNameList[user_and_msg.UserID][i]
 			usersMapHandleUpdMode[user_and_msg.UserID] = HandleUpdateModeBasic
-
+			msg_str += "You have subscribed to anime: " + animeName + "!\n\n"
+			msg_str, keyboard, msg = GeneralMessage(msg_str, keyboard, msg)
 		}
 
 		msg.Text = msg_str

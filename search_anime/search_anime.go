@@ -19,11 +19,14 @@ type GraphQLRequest struct {
 type AnimeResponse struct {
 	Data struct {
 		Animes []struct {
-			English  string `json:"english"`
-			Russian  string `json:"russian"`
-			Japanese string `json:"japanese"`
-			ID       string `json:"id"`
-			URL      string `json:"url"`
+			English       string `json:"english"`
+			Russian       string `json:"russian"`
+			Japanese      string `json:"japanese"`
+			ID            string `json:"id"`
+			URL           string `json:"url"`
+			Status        string `json:"status"`
+			Episodes      int    `json:"episodes"`
+			EpisodesAired int    `json:"episodesAired"`
 		} `json:"animes"`
 	} `json:"data"`
 }
@@ -38,6 +41,9 @@ func SearchAnimeByName(name string) AnimeResponse {
 				japanese
 				id
 				url
+				status
+				episodes
+				episodesAired
 			}
 		}
 	`, name)
@@ -107,6 +113,9 @@ func SearchAnimeById(ID int64) AnimeResponse {
 				japanese
 				id
 				url
+				status
+				episodes
+				episodesAired
 			}
 		}
 	`, str_id)
