@@ -47,6 +47,7 @@ var usersMapHandleUpdMode = make(map[int64]HandleUpdateMode)
 
 var usersMapLastAnimeIDList = make(map[int64][]int64)
 var usersMapLastAnimeNameList = make(map[int64][]string)
+var usersMapLastAnimeLastEpisodeList = make(map[int64][]int)
 
 // Function to create an inline keyboard from listText and maxCols
 func CreateInlineKeyboard(listText []string, maxCols int) tgbotapi.InlineKeyboardMarkup {
@@ -199,6 +200,7 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 				incomplete_count := 0
 				LastAnimeSearchList := make([]int64, 0)
 				LastAnimeSearchListName := make([]string, 0)
+				LastAnimeSearchListLastEpisode := make([]int, 0)
 
 				var list_button_text []string
 				for i, anime := range animeResp.Data.Animes {
@@ -211,6 +213,8 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 
 					LastAnimeSearchList = append(LastAnimeSearchList, int64(animeID))
 					LastAnimeSearchListName = append(LastAnimeSearchListName, anime.English)
+					LastAnimeSearchListLastEpisode = append(LastAnimeSearchListLastEpisode, int(anime.EpisodesAired))
+
 					if anime.Status != "released" {
 						incomplete_count++
 						list_button_text = append(list_button_text, strconv.Itoa(i+1))
@@ -226,6 +230,7 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 				} else {
 					usersMapLastAnimeIDList[user_and_msg.UserID] = LastAnimeSearchList
 					usersMapLastAnimeNameList[user_and_msg.UserID] = LastAnimeSearchListName
+					usersMapLastAnimeLastEpisodeList[user_and_msg.UserID] = LastAnimeSearchListLastEpisode
 
 					msg_str += "Some of the found animes are not complete\n"
 					msg_str += "You can subscribe to be notified if new episodes are aired\n"
@@ -242,14 +247,21 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 				fmt.Println("Error getting anime ID from user's message")
 			}
 			i--
-			// animeID := usersMapLastAnimeIDList[user_and_msg.UserID][i]
+			animeID := usersMapLastAnimeIDList[user_and_msg.UserID][i]
 			animeName := usersMapLastAnimeNameList[user_and_msg.UserID][i]
+			lastEpisode := usersMapLastAnimeLastEpisodeList[user_and_msg.UserID][i]
 			usersMapHandleUpdMode[user_and_msg.UserID] = HandleUpdateModeBasic
+			pql.AddAnimeIdAndLastEpisode(db, user_and_msg.UserID, int(animeID), lastEpisode)
+			checkSubscriptionAfterAdd, err := pql.GetSliceAnimeIdAndLastEpisode(db, user_and_msg.UserID)
+			if len(checkSubscriptionAfterAdd) == 0 {
+				log.Fatal("Something went wrong.\n")
+			}
 			msg_str += "You have subscribed to anime: " + animeName + "!\n\n"
 			msg_str, keyboard, msg = GeneralMessage(msg_str, keyboard, msg)
 		}
 
 		msg.Text = msg_str
+		msg.DisableWebPagePreview = true
 
 		// Send the response message
 		bot.Send(msg)

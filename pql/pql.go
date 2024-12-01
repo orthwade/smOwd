@@ -254,3 +254,59 @@ func GetSliceAnimeIdAndLastEpisode(db *sql.DB, userID int64) ([]AnimeIDAndLastEp
 
 	return result, nil
 }
+
+func AddAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int, lastEpisode int) {
+
+	// Step 1: Retrieve the current anime_data for userID
+	var currentAnimeData []AnimeIDAndLastEpisode
+	query := "SELECT anime_data FROM users WHERE id = $1"
+	rows, err := db.Query(query, userID) // Get data for userID
+	if err != nil {
+		log.Fatal("Failed to retrieve data:", err)
+	}
+	defer rows.Close()
+
+	// Assuming anime_data is a valid PostgreSQL array of strings
+	for rows.Next() {
+		var animeData []string                                  // Slice of strings to hold the PostgreSQL array
+		if err := rows.Scan(pq.Array(&animeData)); err != nil { // Use pq.Array to scan into slice
+			log.Fatal("Failed to scan rows:", err)
+		}
+
+		// Convert the array of strings into AnimeIDAndLastEpisode
+		for _, v := range animeData {
+			// Assuming the data is in the form "(anime_id, last_episode)"
+			var animeID, lastEpisode int
+			fmt.Sscanf(v, "(%d, %d)", &animeID, &lastEpisode)
+			currentAnimeData = append(currentAnimeData, AnimeIDAndLastEpisode{AnimeID: animeID, LastEpisode: lastEpisode})
+		}
+	}
+
+	// Step 2: Append the new anime element {anime_id: animeID, last_episode: lastEpisode}
+	newAnime := AnimeIDAndLastEpisode{
+		AnimeID:     animeID,
+		LastEpisode: lastEpisode,
+	}
+	currentAnimeData = append(currentAnimeData, newAnime)
+
+	// Step 3: Update the anime_data in the database
+	updateQuery := `
+		UPDATE users
+		SET anime_data = $1
+		WHERE id = $2;
+	`
+
+	// Prepare the updated anime data as PostgreSQL array
+	var updatedAnimeData []string
+	for _, anime := range currentAnimeData {
+		updatedAnimeData = append(updatedAnimeData, fmt.Sprintf("(%d,%d)", anime.AnimeID, anime.LastEpisode))
+	}
+
+	// Execute the update query with the new array
+	_, err = db.Exec(updateQuery, pq.Array(updatedAnimeData), userID)
+	if err != nil {
+		log.Fatal("Failed to update anime_data:", err)
+	}
+
+	fmt.Println("Successfully appended new anime data and updated the database.")
+}
