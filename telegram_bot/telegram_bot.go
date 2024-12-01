@@ -1,11 +1,15 @@
 package telegram_bot
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
+	"time"
 
 	"smOwd/pql"
 	"smOwd/search_anime"
@@ -268,6 +272,71 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 	}
 }
 
+func SignalAnimeComplete(db *sql.DB, userID int64, animeName string) {
+
+}
+
+func SignalAnimeNewEpisodes(db *sql.DB, userID int64, animeName string, newEpisode int) {
+
+}
+
+func processUsers(db *sql.DB) {
+	// Query all users from the users table
+	rows, err := db.Query("SELECT id, enabled FROM users")
+	if err != nil {
+		log.Fatal("Failed to query users:", err)
+	}
+	defer rows.Close()
+
+	// Process each user
+	for rows.Next() {
+		var userID int64
+		var enabled bool
+		if err := rows.Scan(&userID, &enabled); err != nil {
+			log.Fatal("Failed to scan row:", err)
+		}
+
+		// Example processing: Print the user ID and their enabled status
+		fmt.Printf("Processing User ID: %d\n", userID)
+
+		list, err := pql.GetSliceAnimeIdAndLastEpisode(db, userID)
+		if err != nil {
+			fmt.Printf("Error reading subscription for user: %d", userID)
+		}
+
+		if len(list) == 0 {
+			fmt.Printf("Used ID %d is not subscribed to any anime notifications.\n", userID)
+		} else {
+			for _, id_and_last_episode := range list {
+
+				animeID := id_and_last_episode.AnimeID
+
+				anime := search_anime.SearchAnimeById(int64(animeID))
+				animeName := anime.Data.Animes[0].English
+				storedAnimeLastEpisode := id_and_last_episode.LastEpisode
+				actualAnimeLastEpisode := anime.Data.Animes[0].EpisodesAired
+				animeStatus := anime.Data.Animes[0].Status
+				if animeStatus == "released" {
+					SignalAnimeComplete(db, userID, animeName)
+					pql.RemoveAnimeIdAndLastEpisode(db, userID, animeID)
+				} else if actualAnimeLastEpisode > storedAnimeLastEpisode {
+					SignalAnimeNewEpisodes(db, userID, animeName, actualAnimeLastEpisode)
+					pql.UpdateAnimeIdAndLastEpisode(db, userID, animeID, actualAnimeLastEpisode)
+				} else {
+					fmt.Printf("Nothing new for User %d.\n", userID)
+				}
+			}
+		}
+
+		// You can add your custom processing logic here
+	}
+
+	// Check for errors in the row iteration
+	if err := rows.Err(); err != nil {
+		log.Fatal("Error reading rows:", err)
+	}
+}
+
 func StartBotAndHandleUpdates(db *sql.DB) {
 	// Get the Telegram bot token from an environment variable
 	token := os.Getenv("TELEGRAM_BOT_TOKEN")
@@ -295,8 +364,51 @@ func StartBotAndHandleUpdates(db *sql.DB) {
 		log.Fatal(err)
 	}
 
-	// Main loop: process incoming updates
-	for update := range updates {
-		handleUpdate(bot, update, db)
+	// Create a channel to synchronize processUsers with handleUpdate
+	processUsersChan := make(chan bool)
+
+	// Create a context and cancel function for graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Set up a goroutine to listen for OS signals and trigger shutdown
+	go func() {
+		// Channel for receiving OS termination signals (e.g., CTRL+C or kill command)
+		signalChan := make(chan os.Signal, 1)
+		signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+		<-signalChan // Block until a signal is received
+		log.Println("Received shutdown signal, shutting down gracefully...")
+		cancel() // Trigger the shutdown process
+	}()
+
+	// Start a goroutine to handle periodic user processing every second
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				processUsersChan <- true // Send signal to process users every second
+			case <-ctx.Done():
+				log.Println("Stopping user processing due to shutdown signal.")
+				return
+			}
+		}
+	}()
+
+	// Main loop: process incoming updates and handle periodic user processing
+	for {
+		select {
+		case update := <-updates:
+			// Handle incoming updates (messages and callback queries)
+			handleUpdate(bot, update, db)
+		case <-processUsersChan:
+			// This block is triggered every 1 second to process users
+			processUsers(db)
+		case <-ctx.Done():
+			// Graceful shutdown of the main loop
+			log.Println("Shutting down the bot.")
+			return
+		}
 	}
 }

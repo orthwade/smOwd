@@ -310,3 +310,121 @@ func AddAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int, lastEpisode
 
 	fmt.Println("Successfully appended new anime data and updated the database.")
 }
+
+func UpdateAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int, lastEpisode int) {
+	// Step 1: Retrieve the current anime_data for userID
+	var currentAnimeData []AnimeIDAndLastEpisode
+	query := "SELECT anime_data FROM users WHERE id = $1"
+	rows, err := db.Query(query, userID) // Get data for userID
+	if err != nil {
+		log.Fatal("Failed to retrieve data:", err)
+	}
+	defer rows.Close()
+
+	// Assuming anime_data is a valid PostgreSQL array of strings
+	for rows.Next() {
+		var animeData []string                                  // Slice of strings to hold the PostgreSQL array
+		if err := rows.Scan(pq.Array(&animeData)); err != nil { // Use pq.Array to scan into slice
+			log.Fatal("Failed to scan rows:", err)
+		}
+
+		// Convert the array of strings into AnimeIDAndLastEpisode
+		for _, v := range animeData {
+			// Assuming the data is in the form "(anime_id, last_episode)"
+			var id, ep int
+			fmt.Sscanf(v, "(%d, %d)", &id, &ep)
+			currentAnimeData = append(currentAnimeData, AnimeIDAndLastEpisode{AnimeID: id, LastEpisode: ep})
+		}
+	}
+
+	// Step 2: Update the lastEpisode for the given animeID if it exists
+	var updatedAnimeData []AnimeIDAndLastEpisode
+	animeFound := false
+	for _, anime := range currentAnimeData {
+		if anime.AnimeID == animeID {
+			// Update the last episode
+			anime.LastEpisode = lastEpisode
+			animeFound = true
+		}
+		// Append the (possibly updated) anime pair
+		updatedAnimeData = append(updatedAnimeData, anime)
+	}
+
+	// If the animeID wasn't found, append the new animeID and lastEpisode pair
+	if !animeFound {
+		updatedAnimeData = append(updatedAnimeData, AnimeIDAndLastEpisode{AnimeID: animeID, LastEpisode: lastEpisode})
+	}
+
+	// Step 3: Prepare the updated anime data as a PostgreSQL array
+	var updatedAnimeDataStrings []string
+	for _, anime := range updatedAnimeData {
+		updatedAnimeDataStrings = append(updatedAnimeDataStrings, fmt.Sprintf("(%d,%d)", anime.AnimeID, anime.LastEpisode))
+	}
+
+	// Step 4: Update the anime_data in the database with the new array
+	updateQuery := `
+		UPDATE users
+		SET anime_data = $1
+		WHERE id = $2;
+	`
+	_, err = db.Exec(updateQuery, pq.Array(updatedAnimeDataStrings), userID)
+	if err != nil {
+		log.Fatal("Failed to update anime_data:", err)
+	}
+
+	fmt.Println("Successfully updated anime data for userID:", userID)
+}
+
+func RemoveAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int) {
+	// Step 1: Retrieve the current anime_data for userID
+	var currentAnimeData []AnimeIDAndLastEpisode
+	query := "SELECT anime_data FROM users WHERE id = $1"
+	rows, err := db.Query(query, userID) // Get data for userID
+	if err != nil {
+		log.Fatal("Failed to retrieve data:", err)
+	}
+	defer rows.Close()
+
+	// Assuming anime_data is a valid PostgreSQL array of strings
+	for rows.Next() {
+		var animeData []string                                  // Slice of strings to hold the PostgreSQL array
+		if err := rows.Scan(pq.Array(&animeData)); err != nil { // Use pq.Array to scan into slice
+			log.Fatal("Failed to scan rows:", err)
+		}
+
+		// Convert the array of strings into AnimeIDAndLastEpisode
+		for _, v := range animeData {
+			// Assuming the data is in the form "(anime_id, last_episode)"
+			var id, ep int
+			fmt.Sscanf(v, "(%d, %d)", &id, &ep)
+			currentAnimeData = append(currentAnimeData, AnimeIDAndLastEpisode{AnimeID: id, LastEpisode: ep})
+		}
+	}
+
+	// Step 2: Remove the animeID from the currentAnimeData slice
+	var updatedAnimeData []AnimeIDAndLastEpisode
+	for _, anime := range currentAnimeData {
+		if anime.AnimeID != animeID { // If it's not the animeID to remove, keep it
+			updatedAnimeData = append(updatedAnimeData, anime)
+		}
+	}
+
+	// Step 3: Prepare the updated anime data as a PostgreSQL array (formatted as strings)
+	var updatedAnimeDataStrings []string
+	for _, anime := range updatedAnimeData {
+		updatedAnimeDataStrings = append(updatedAnimeDataStrings, fmt.Sprintf("(%d,%d)", anime.AnimeID, anime.LastEpisode))
+	}
+
+	// Step 4: Update the anime_data in the database with the new array (after removal)
+	updateQuery := `
+		UPDATE users
+		SET anime_data = $1
+		WHERE id = $2;
+	`
+	_, err = db.Exec(updateQuery, pq.Array(updatedAnimeDataStrings), userID)
+	if err != nil {
+		log.Fatal("Failed to update anime_data:", err)
+	}
+
+	fmt.Println("Successfully removed anime data for userID:", userID)
+}
