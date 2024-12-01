@@ -7,7 +7,10 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"regexp"
+	"sort"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -40,11 +43,20 @@ const (
 	HandleUpdateModeBasic HandleUpdateMode = iota
 	HandleUpdateModeSearch
 	HandleUpdateModeSubscribe
+	HandleUpdateModeRemove
 )
 
 // String method for Color type to print meaningful names
 func (c HandleUpdateMode) String() string {
 	return [...]string{"Basic", "Search"}[c]
+}
+
+// min returns the smaller of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 var usersMapHandleUpdMode = make(map[int64]HandleUpdateMode)
@@ -98,6 +110,9 @@ func GeneralMessage(msg_str string, keyboard tgbotapi.InlineKeyboardMarkup, msg 
 			tgbotapi.NewInlineKeyboardButtonData("Show\nsubscriptions", "subscriptions"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Remove subscriptions", "remove"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("Search anime by name", "search"),
 		),
 	)
@@ -107,6 +122,75 @@ func GeneralMessage(msg_str string, keyboard tgbotapi.InlineKeyboardMarkup, msg 
 
 	// Return the modified values
 	return msg_str, keyboard, msg
+}
+
+func checkRangeFormat(s string) (bool, int, int) {
+	// Define the regex pattern for the "a-b" format
+	re := regexp.MustCompile(`^(\d+)-(\d+)$`)
+	matches := re.FindStringSubmatch(s)
+
+	// If no match found, return false
+	if matches == nil {
+		return false, 0, 0
+	}
+
+	// Parse the integers
+	a, errA := strconv.Atoi(matches[1])
+	b, errB := strconv.Atoi(matches[2])
+
+	// Check for any errors during conversion
+	if errA != nil || errB != nil {
+		return false, 0, 0
+	}
+
+	// Ensure that a <= b
+	if a >= b {
+		return false, 0, 0
+	}
+
+	// Return true if the format is valid
+	return true, a, b
+}
+
+// checkCommaSeparatedIntegers checks if the string consists of comma-separated integers,
+// removes duplicates, and sorts the output slice.
+func checkCommaSeparatedIntegers(s string) (bool, []int) {
+	// Define the regex pattern for comma-separated integers
+	re := regexp.MustCompile(`^(\d+)(,\s*\d+)*$`)
+
+	// Check if the string matches the pattern
+	if !re.MatchString(s) {
+		return false, nil
+	}
+
+	// Split the string by commas and parse each part into an integer
+	parts := strings.Split(s, ",")
+	uniqueInts := make(map[int]struct{}) // Map to store unique integers
+
+	for _, part := range parts {
+		// Trim spaces around each number
+		part = strings.TrimSpace(part)
+		// Convert the string part to an integer
+		num, err := strconv.Atoi(part)
+		if err != nil {
+			// If any part is not a valid integer, return false
+			return false, nil
+		}
+		// Add the integer to the map (duplicates are automatically removed)
+		uniqueInts[num] = struct{}{}
+	}
+
+	// Convert the map keys to a slice
+	var result []int
+	for num := range uniqueInts {
+		result = append(result, num)
+	}
+
+	// Sort the slice of integers
+	sort.Ints(result)
+
+	// Return true if all parts are valid integers, along with the sorted and deduplicated slice
+	return true, result
 }
 
 // Unified function to handle both messages and inline button callbacks
@@ -180,7 +264,7 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 				if len(slice_anime_id_and_last_episode) == 0 {
 					msg_str += "You are not subscribed to any anime notifications.\n"
 				} else {
-					msg_str += "You are subscribed to notificatins about following titles:\n"
+					msg_str += "You are subscribed to notifications about following titles:\n"
 					for i, id_and_last_episode := range slice_anime_id_and_last_episode {
 						anime := search_anime.SearchAnimeById(int64(id_and_last_episode.AnimeID))
 						msg_str += strconv.Itoa(i+1) + ". "
@@ -192,6 +276,36 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 			} else if user_and_msg.Text == "search" {
 				usersMapHandleUpdMode[user_and_msg.UserID] = HandleUpdateModeSearch
 				msg_str += "Enter a name of anime in english to search it.\n"
+			} else if user_and_msg.Text == "remove" {
+				slice_anime_id_and_last_episode, _ := pql.GetSliceAnimeIdAndLastEpisode(db, user_and_msg.UserID)
+				if len(slice_anime_id_and_last_episode) == 0 {
+					msg_str += "You are not subscribed to any anime notifications.\n"
+				} else {
+					msg_str += "You are subscribed to notifications about following titles:\n"
+					var list_button_text []string
+					for i, id_and_last_episode := range slice_anime_id_and_last_episode {
+						anime := search_anime.SearchAnimeById(int64(id_and_last_episode.AnimeID))
+						msg_str += strconv.Itoa(i+1) + ". "
+						msg_str += anime.Data.Animes[0].English
+						msg_str += "\n"
+						list_button_text = append(list_button_text, strconv.Itoa(i+1))
+					}
+					list_button_text = append(list_button_text, "All")
+					msg_str += "\n"
+					msg_str += "Choose subscriptions that you want to remove.\n"
+					msg_str += "You can press a button with a number to remove a corresponding subsciption\n"
+					msg_str += "You can press a button \"All\" to remove all subscriptions\n"
+					msg_str += "You can send a message with a number to remove a corresponding subsciption\n"
+					msg_str += "You can send a message with a range to remove corresponding subscriptions\n"
+					msg_str += "For example, message 2-4 will remove subscriptions 2, 3, 4\n"
+					msg_str += "You can send a message with a comma separated set of numbers to remove corresponding subscriptions\n"
+					msg_str += "For example, message 1,2,5 will remove subscriptions 1, 2, 5\n"
+					usersMapHandleUpdMode[user_and_msg.UserID] = HandleUpdateModeRemove
+
+					keyboard = CreateInlineKeyboard(list_button_text, 5)
+					msg.ReplyMarkup = keyboard
+
+				}
 
 			}
 			if usersMapHandleUpdMode[user_and_msg.UserID] == HandleUpdateModeBasic {
@@ -262,6 +376,82 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 				log.Fatal("Something went wrong.\n")
 			}
 			msg_str += "You have subscribed to anime: " + animeName + "!\n\n"
+			msg_str, keyboard, msg = GeneralMessage(msg_str, keyboard, msg)
+		} else if usersMapHandleUpdMode[user_and_msg.UserID] == HandleUpdateModeRemove {
+			userID := user_and_msg.UserID
+			text := user_and_msg.Text
+			list, _ := pql.GetSliceAnimeIdAndLastEpisode(db, userID)
+
+			if text == "All" {
+				for i, anime := range list {
+					animeID := anime.AnimeID
+					animeName := search_anime.SearchAnimeById(int64(animeID)).Data.Animes[0].English
+					msg_str += fmt.Sprintf("Removing anime %d. %s\n", i+1, animeName)
+					pql.RemoveAnimeIdAndLastEpisode(db, userID, anime.AnimeID)
+				}
+			} else {
+				v, a, b := checkRangeFormat(text)
+				if v {
+					if a-1 < len(list) {
+						i_0 := a - 1
+						i_1 := min(len(list)-1, b-1)
+						for i := i_0; i <= i_1; i++ {
+							animeID := list[i].AnimeID
+							animeName := search_anime.SearchAnimeById(int64(animeID)).Data.Animes[0].English
+							msg_str += fmt.Sprintf("Removing anime %d. %s\n", i+1, animeName)
+							pql.RemoveAnimeIdAndLastEpisode(db, userID, list[i].AnimeID)
+						}
+					}
+
+				} else {
+					v, list_of_indices := checkCommaSeparatedIntegers(text)
+					if v {
+						for _, j := range list_of_indices {
+							if j-1 < len(list) {
+								animeID := list[j-1].AnimeID
+								animeName := search_anime.SearchAnimeById(int64(animeID)).Data.Animes[0].English
+								msg_str += fmt.Sprintf("Removing anime %d. %s\n", j, animeName)
+								pql.RemoveAnimeIdAndLastEpisode(db, userID, list[j-1].AnimeID)
+							} else {
+								msg_str += fmt.Sprintf("Error: %d is greater than the largerst index of your subcription\n", j)
+
+								break
+							}
+						}
+					} else {
+						val, err := strconv.Atoi(text)
+						if err == nil {
+							if val-1 < len(list) {
+								animeID := list[val-1].AnimeID
+								animeName := search_anime.SearchAnimeById(int64(animeID)).Data.Animes[0].English
+								msg_str += fmt.Sprintf("Removing anime %d. %s\n", val, animeName)
+								pql.RemoveAnimeIdAndLastEpisode(db, userID, list[val-1].AnimeID)
+							} else {
+								msg_str += fmt.Sprintf("Error: %d is greater than the largerst index of your subcription\n", val)
+							}
+
+						} else {
+							msg_str += "Couldn't parse your message to get the necessary indices of subscriptions to remove\n"
+						}
+					}
+				}
+
+			}
+			list, _ = pql.GetSliceAnimeIdAndLastEpisode(db, userID)
+
+			if len(list) == 0 {
+				msg_str += "You are not subscribed to any anime notifications.\n"
+			} else {
+				msg_str += "You are subscribed to notifications about following titles:\n"
+				for i, id_and_last_episode := range list {
+					anime := search_anime.SearchAnimeById(int64(id_and_last_episode.AnimeID))
+					msg_str += strconv.Itoa(i+1) + ". "
+					msg_str += anime.Data.Animes[0].English
+					msg_str += "\n"
+				}
+			}
+
+			usersMapHandleUpdMode[user_and_msg.UserID] = HandleUpdateModeBasic
 			msg_str, keyboard, msg = GeneralMessage(msg_str, keyboard, msg)
 		}
 
