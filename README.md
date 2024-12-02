@@ -1,4 +1,9 @@
-1. needs postgres
-2. store postgres master user name to system environmental variables as PQL_USER_NAME
-3. store postgres master user password to system environmental variables as PQL_PASSWORD
-4. store telegram bot token to system environmental variables as TELEGRAM_BOT_TOKEN
+1. needs docker
+2. you need to set up .env file in root directory with these variables:
+TELEGRAM_TOKEN=
+DB_HOST=
+DB_PORT=
+DB_USER=
+DB_PASSWORD=
+DB_NAME=
+3. user has to have superuser status to create custom type "anime_id_and_last_episode". Maybe it will be fixed later.
