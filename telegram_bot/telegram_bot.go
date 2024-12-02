@@ -221,9 +221,9 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 			fmt.Println("User exists in db, user id: ", user_and_msg.UserID)
 		} else {
 			enabled := false
-			animeIDs := "{}"
+			// animeIDs := "{}"
 
-			_, err = db.Exec("INSERT INTO users (id, enabled, anime_ids) VALUES ($1, $2, $3)", user_and_msg.UserID, enabled, animeIDs)
+			_, err = db.Exec("INSERT INTO users (id, enabled) VALUES ($1, $2)", user_and_msg.UserID, enabled)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -560,7 +560,7 @@ func processUsers(db *sql.DB, bot *tgbotapi.BotAPI) {
 
 func StartBotAndHandleUpdates(db *sql.DB) {
 	// Get the Telegram bot token from an environment variable
-	token := os.Getenv("TELEGRAM_BOT_TOKEN")
+	token := os.Getenv("TELEGRAM_TOKEN")
 	if token == "" {
 		log.Fatal("TELEGRAM_BOT_TOKEN is not set")
 	}
@@ -604,7 +604,7 @@ func StartBotAndHandleUpdates(db *sql.DB) {
 
 	// Start a goroutine to handle periodic user processing every second
 	go func() {
-		ticker := time.NewTicker(1 * time.Second)
+		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {

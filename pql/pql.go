@@ -20,6 +20,7 @@ func ConnectToDB(connStr string) (*sql.DB, error) {
 
 // dbExists checks if the specified database exists.
 func DbExists(db *sql.DB, dbName string) bool {
+	fmt.Printf("Checking if db %s exists\n", dbName)
 	var exists bool
 	query := `SELECT EXISTS (
 		SELECT 1 FROM pg_database WHERE datname = $1
@@ -38,15 +39,25 @@ func CreateDatabase(db *sql.DB, dbName string) error {
 }
 
 func CreateTableNamedUsers(db *sql.DB) error {
+	fmt.Println("Checking if users table is already created, if not -- creating it")
+
 	// Create the table with the specified table name
 	createTableSQL := `CREATE TABLE IF NOT EXISTS users (
 		id SERIAL PRIMARY KEY,
 		enabled BOOL
 	);`
 
+	// Execute the SQL statement
 	_, err := db.Exec(createTableSQL)
-	return err
+	if err != nil {
+		return fmt.Errorf("error creating table: %w", err) // Return a wrapped error with a descriptive message
+	}
+
+	// If no error, print success message
+	fmt.Println("Table users created successfully (or already exists)")
+	return nil
 }
+
 func UserExists(db *sql.DB, userID int64) bool {
 	var exists bool
 	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", userID).Scan(&exists)
@@ -217,6 +228,10 @@ func IsCustomTypeCreated(db *sql.DB, custom_type_name string) bool {
 
 func CreateCustomTypeAnimeIdAndLastEpisode(db *sql.DB) {
 	// Create the custom type if it doesn't exist
+
+	var currentUser string
+	err := db.QueryRow("SELECT current_user;").Scan(&currentUser)
+
 	typeName := "anime_id_and_last_episode"
 	createTypeQuery := fmt.Sprintf(`
         CREATE TYPE %s AS (
@@ -224,7 +239,7 @@ func CreateCustomTypeAnimeIdAndLastEpisode(db *sql.DB) {
             last_episode INT
         );
         `, typeName)
-	_, err := db.Exec(createTypeQuery)
+	_, err = db.Exec(createTypeQuery)
 	if err != nil {
 		log.Fatal("Failed to create type:", err)
 	}
