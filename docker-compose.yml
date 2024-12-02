@@ -5,7 +5,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}    # Using environment variable from .env
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT}
       - DB_USER=${DB_USER}
@@ -13,17 +13,18 @@ services:
       - DB_NAME=${DB_NAME}
     depends_on:
       - postgres
-
     env_file:
-      - .env  # Docker Compose will automatically load variables from this file
+      - .env
 
   postgres:
     image: postgres:17.2
     environment:
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}           # Creates the superuser
+      - POSTGRES_PASSWORD=${DB_PASSWORD}   # Password for superuser
+      - POSTGRES_DB=${DB_NAME}             # Creates the initial database
     ports:
       - "5432:5432"
-    
+    volumes:
+      - ./init.sh:/docker-entrypoint-initdb.d/init.sh  # Mount the init.sh script
+      - ./init.sql.template:/docker-entrypoint-initdb.d/init.sql.template  # Mount the init.sql.template file
 
