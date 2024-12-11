@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -110,11 +112,17 @@ func TestPostgresConnection() {
 }
 
 func main() {
+	// Create a new logger instance with a TextHandler
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+
+	// Create a context with the logger stored in it
+	ctx := context.WithValue(context.Background(), "logger", logger)
+
 	// TestPostgresConnection()
 	// return
 	db := TestPQL()
 	defer db.Close()
 	// pql.DeleteColumn(db, "users", "anime_ids")
 	pql.PrintTableColumnsNamesAndTypes(db, "users")
-	telegram_bot.StartBotAndHandleUpdates(db)
+	telegram_bot.StartBotAndHandleUpdates(ctx, db)
 }

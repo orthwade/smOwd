@@ -1,5 +1,5 @@
 # Use the same Go version for building and running
-FROM golang:1.20-buster AS builder
+FROM golang:1.23.3
 
 WORKDIR /app
 
@@ -14,7 +14,7 @@ COPY . .
 RUN go build -o main .
 
 # Now, create the runtime image with the same base image
-FROM golang:1.20-buster
+FROM golang:1.23.3
 
 WORKDIR /app
 

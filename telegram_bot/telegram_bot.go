@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"regexp"
@@ -64,6 +65,15 @@ var usersMapHandleUpdMode = make(map[int64]HandleUpdateMode)
 var usersMapLastAnimeIDList = make(map[int64][]int64)
 var usersMapLastAnimeNameList = make(map[int64][]string)
 var usersMapLastAnimeLastEpisodeList = make(map[int64][]int)
+
+func RemoveAnimeIdAndLastEpisode(ctx context.Context, db *sql.DB, userID int64, animeID int, subscriptionNum int, msg_str string) string {
+	animeResp, _ := search_anime.SearchAnimeById(ctx, int64(animeID))
+	animeName := animeResp.Data.Animes[0].English
+
+	msg_str += fmt.Sprintf("Removing anime %d. %s\n", subscriptionNum, animeName)
+	pql.RemoveAnimeIdAndLastEpisode(db, userID, animeID)
+	return msg_str
+}
 
 // Function to create an inline keyboard from listText and maxCols
 func CreateInlineKeyboard(listText []string, maxCols int) tgbotapi.InlineKeyboardMarkup {
@@ -194,7 +204,13 @@ func checkCommaSeparatedIntegers(s string) (bool, []int) {
 }
 
 // Unified function to handle both messages and inline button callbacks
-func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
+func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
+	// Retrieve the logger from the context
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
 	var user_and_msg UserAndMessage
 	var msg tgbotapi.MessageConfig
 	var err error
@@ -218,17 +234,17 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 	if !skip {
 
 		if pql.UserExists(db, user_and_msg.UserID) {
-			fmt.Println("User exists in db, user id: ", user_and_msg.UserID)
+			logger.Info("Found user in DB", "User ID", user_and_msg.UserID)
 		} else {
 			enabled := false
 			// animeIDs := "{}"
 
 			_, err = db.Exec("INSERT INTO users (id, enabled) VALUES ($1, $2)", user_and_msg.UserID, enabled)
 			if err != nil {
-				log.Fatal(err)
+				logger.Error("Failed INSERT", "error", err)
 			}
-			fmt.Println("User inserted successfully")
 
+			logger.Info("User inserted successfully", "User ID", user_and_msg.UserID)
 		}
 		_, ok := usersMapHandleUpdMode[user_and_msg.UserID]
 		if !ok {
@@ -256,21 +272,24 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 				slice_anime_id_and_last_episode, err := pql.GetSliceAnimeIdAndLastEpisode(db, user_and_msg.UserID)
 
 				if err != nil {
-					fmt.Println("Error reading your list of subscritions")
-				}
-				// if len(slice_anime_id) == 0 {
-				// slice_anime_id = append(slice_anime_id, 5081)
-				// }
-				if len(slice_anime_id_and_last_episode) == 0 {
-					msg_str += "You are not subscribed to any anime notifications.\n"
+					logger.Error("Error reading your list of subscritions", "error", err)
+
 				} else {
-					msg_str += "You are subscribed to notifications about following titles:\n"
-					for i, id_and_last_episode := range slice_anime_id_and_last_episode {
-						anime := search_anime.SearchAnimeById(int64(id_and_last_episode.AnimeID))
-						msg_str += strconv.Itoa(i+1) + ". "
-						msg_str += anime.Data.Animes[0].English
-						msg_str += "\n"
+					// if len(slice_anime_id) == 0 {
+					// slice_anime_id = append(slice_anime_id, 5081)
+					// }
+					if len(slice_anime_id_and_last_episode) == 0 {
+						msg_str += "You are not subscribed to any anime notifications.\n"
+					} else {
+						msg_str += "You are subscribed to notifications about following titles:\n"
+						for i, id_and_last_episode := range slice_anime_id_and_last_episode {
+							anime, _ := search_anime.SearchAnimeById(ctx, int64(id_and_last_episode.AnimeID))
+							msg_str += strconv.Itoa(i+1) + ". "
+							msg_str += anime.Data.Animes[0].English
+							msg_str += "\n"
+						}
 					}
+
 				}
 
 			} else if user_and_msg.Text == "search" {
@@ -284,7 +303,7 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 					msg_str += "You are subscribed to notifications about following titles:\n"
 					var list_button_text []string
 					for i, id_and_last_episode := range slice_anime_id_and_last_episode {
-						anime := search_anime.SearchAnimeById(int64(id_and_last_episode.AnimeID))
+						anime, _ := search_anime.SearchAnimeById(ctx, int64(id_and_last_episode.AnimeID))
 						msg_str += strconv.Itoa(i+1) + ". "
 						msg_str += anime.Data.Animes[0].English
 						msg_str += "\n"
@@ -313,7 +332,7 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 			}
 
 		} else if handle_update_mode == HandleUpdateModeSearch {
-			animeResp := search_anime.SearchAnimeByName(user_and_msg.Text)
+			animeResp, _ := search_anime.SearchAnimeByName(ctx, user_and_msg.Text)
 
 			if len(animeResp.Data.Animes) > 0 {
 				incomplete_count := 0
@@ -384,10 +403,8 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 
 			if text == "All" {
 				for i, anime := range list {
-					animeID := anime.AnimeID
-					animeName := search_anime.SearchAnimeById(int64(animeID)).Data.Animes[0].English
-					msg_str += fmt.Sprintf("Removing anime %d. %s\n", i+1, animeName)
-					pql.RemoveAnimeIdAndLastEpisode(db, userID, anime.AnimeID)
+					msg_str = RemoveAnimeIdAndLastEpisode(ctx, db, userID, anime.AnimeID, i+1, msg_str)
+
 				}
 			} else {
 				v, a, b := checkRangeFormat(text)
@@ -396,10 +413,7 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 						i_0 := a - 1
 						i_1 := min(len(list)-1, b-1)
 						for i := i_0; i <= i_1; i++ {
-							animeID := list[i].AnimeID
-							animeName := search_anime.SearchAnimeById(int64(animeID)).Data.Animes[0].English
-							msg_str += fmt.Sprintf("Removing anime %d. %s\n", i+1, animeName)
-							pql.RemoveAnimeIdAndLastEpisode(db, userID, list[i].AnimeID)
+							msg_str = RemoveAnimeIdAndLastEpisode(ctx, db, userID, list[i].AnimeID, i+1, msg_str)
 						}
 					}
 
@@ -408,10 +422,7 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 					if v {
 						for _, j := range list_of_indices {
 							if j-1 < len(list) {
-								animeID := list[j-1].AnimeID
-								animeName := search_anime.SearchAnimeById(int64(animeID)).Data.Animes[0].English
-								msg_str += fmt.Sprintf("Removing anime %d. %s\n", j, animeName)
-								pql.RemoveAnimeIdAndLastEpisode(db, userID, list[j-1].AnimeID)
+								msg_str = RemoveAnimeIdAndLastEpisode(ctx, db, userID, list[j-1].AnimeID, j, msg_str)
 							} else {
 								msg_str += fmt.Sprintf("Error: %d is greater than the largerst index of your subcription\n", j)
 
@@ -422,10 +433,8 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 						val, err := strconv.Atoi(text)
 						if err == nil {
 							if val-1 < len(list) {
-								animeID := list[val-1].AnimeID
-								animeName := search_anime.SearchAnimeById(int64(animeID)).Data.Animes[0].English
-								msg_str += fmt.Sprintf("Removing anime %d. %s\n", val, animeName)
-								pql.RemoveAnimeIdAndLastEpisode(db, userID, list[val-1].AnimeID)
+								msg_str = RemoveAnimeIdAndLastEpisode(ctx, db, userID, list[val-1].AnimeID, val, msg_str)
+
 							} else {
 								msg_str += fmt.Sprintf("Error: %d is greater than the largerst index of your subcription\n", val)
 							}
@@ -444,7 +453,7 @@ func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 			} else {
 				msg_str += "You are subscribed to notifications about following titles:\n"
 				for i, id_and_last_episode := range list {
-					anime := search_anime.SearchAnimeById(int64(id_and_last_episode.AnimeID))
+					anime, _ := search_anime.SearchAnimeById(ctx, int64(id_and_last_episode.AnimeID))
 					msg_str += strconv.Itoa(i+1) + ". "
 					msg_str += anime.Data.Animes[0].English
 					msg_str += "\n"
@@ -496,7 +505,7 @@ func TestSignalUpdate(bot *tgbotapi.BotAPI, chatID int64) {
 	SignalAnimeNewEpisodes(bot, chatID, animeName, newEpisode)
 }
 
-func processUsers(db *sql.DB, bot *tgbotapi.BotAPI) {
+func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 	// Query all users from the users table
 	rows, err := db.Query("SELECT id, enabled FROM users")
 	if err != nil {
@@ -530,7 +539,7 @@ func processUsers(db *sql.DB, bot *tgbotapi.BotAPI) {
 
 				animeID := id_and_last_episode.AnimeID
 
-				anime := search_anime.SearchAnimeById(int64(animeID))
+				anime, _ := search_anime.SearchAnimeById(ctx, int64(animeID))
 				animeName := anime.Data.Animes[0].English
 				storedAnimeLastEpisode := id_and_last_episode.LastEpisode
 				actualAnimeLastEpisode := anime.Data.Animes[0].EpisodesAired
@@ -558,7 +567,7 @@ func processUsers(db *sql.DB, bot *tgbotapi.BotAPI) {
 	}
 }
 
-func StartBotAndHandleUpdates(db *sql.DB) {
+func StartBotAndHandleUpdates(ctx context.Context, db *sql.DB) {
 	// Get the Telegram bot token from an environment variable
 	token := os.Getenv("TELEGRAM_TOKEN")
 	if token == "" {
@@ -622,13 +631,13 @@ func StartBotAndHandleUpdates(db *sql.DB) {
 		select {
 		case update := <-updates:
 			// Handle incoming updates (messages and callback queries)
-			handleUpdate(bot, update, db)
+			handleUpdate(ctx, bot, update, db)
 		case <-processUsersChan:
 			// This block is triggered every 1 second to process users
-			processUsers(db, bot)
+			processUsers(ctx, db, bot)
 		case <-ctx.Done():
 			// Graceful shutdown of the main loop
-			log.Println("Shutting down the bot.")
+			lo.Println("Shutting down the bot.")
 			return
 		}
 	}
