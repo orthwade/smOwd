@@ -8,15 +8,22 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/joho/godotenv"
-	// "github.com/joho/godotenv/autoload"
-
 	"smOwd/pql"
 	"smOwd/telegram_bot"
+
+	"github.com/joho/godotenv"
 )
 
-func TestPQL() *sql.DB {
-	godotenv.Load()
+func TestPQL(ctx context.Context) *sql.DB {
+	// Get the logger from the context
+	logger := ctx.Value("logger").(*slog.Logger)
+
+	// Load environment variables only once
+	if err := godotenv.Load(); err != nil {
+		logger.Error("Error loading .env file", "error", err)
+		log.Fatal("Error loading .env file")
+	}
+
 	// Load environment variables
 	dbHost := os.Getenv("DB_HOST")
 	dbPort := os.Getenv("DB_PORT")
@@ -27,66 +34,36 @@ func TestPQL() *sql.DB {
 	// Connection string with password
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", dbUser, dbPassword, dbHost, dbPort, dbName)
 
+	// Try to connect to the database
 	db, err := pql.ConnectToDB(connStr)
 	if err != nil {
+		logger.Error("Error connecting to database", "error", err)
 		log.Fatal(err)
 	}
-	// err = db.Ping()
-	// if err != nil {
-	// log.Fatal("Error Ping postgres: ", err)
-	// }
+	logger.Info("Successfully connected to database", "db", dbName)
 
-	fmt.Printf("Successfully connected to %s db\n", dbName)
-
-	custom_type_name := "anime_id_and_last_episode"
-
-	if pql.IsCustomTypeCreated(db, custom_type_name) {
-		fmt.Printf("Column %s is already created\n", custom_type_name)
+	// Check for the custom type "anime_id_and_last_episode"
+	customTypeName := "anime_id_and_last_episode"
+	if pql.IsCustomTypeCreated(ctx, db, customTypeName) {
+		logger.Info("Custom type already created", "type", customTypeName)
 	} else {
-		fmt.Printf("Column %s is not created\n", custom_type_name)
-		pql.CreateCustomTypeAnimeIdAndLastEpisode(db)
+		logger.Warn("Custom type not found, creating...", "type", customTypeName)
+		pql.CreateCustomTypeAnimeIdAndLastEpisode(ctx, db)
 	}
 
-	err = pql.CreateTableNamedUsers(db)
-	if err != nil {
+	// Create the users table if it doesn't exist
+	if err := pql.CreateTableNamedUsers(ctx, db); err != nil {
+		logger.Error("Error creating users table", "error", err)
 		log.Fatal(err)
 	} else {
-		fmt.Println("Table users created successfully")
+		logger.Info("Table users created successfully")
 	}
 
-	pql.CheckAnimeIdAndLastEpisodeColumn(db)
-	pql.CheckChatIdColumn(db)
+	// Check and add necessary columns
+	pql.CheckAnimeIdAndLastEpisodeColumn(ctx, db)
+	pql.CheckChatIdColumn(ctx, db)
 
 	return db
-}
-
-func TestPostgresConnection() {
-	godotenv.Load()
-	// Load environment variables
-	dbHost := os.Getenv("DB_HOST")
-	dbPort := os.Getenv("DB_PORT")
-	dbUser := os.Getenv("DB_USER")
-	dbPassword := os.Getenv("DB_PASSWORD") // Password from .env
-	dbName := os.Getenv("DB_NAME")
-
-	// Connection string with password
-	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", dbUser, dbPassword, dbHost, dbPort, dbName)
-
-	// Open a connection to the database
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatalf("Error opening connection: %v\n", err)
-	}
-	defer db.Close()
-
-	// Ping the database to check if the connection is successful
-	err = db.Ping()
-	if err != nil {
-		log.Fatalf("Error connecting to database: %v\n", err)
-	}
-
-	// If successful, print a success message
-	fmt.Println("Successfully connected to PostgreSQL!")
 }
 
 func main() {
@@ -96,11 +73,10 @@ func main() {
 	// Create a context with the logger stored in it
 	ctx := context.WithValue(context.Background(), "logger", logger)
 
-	// TestPostgresConnection()
-	// return
-	db := TestPQL()
+	// Test database connection and operations
+	db := TestPQL(ctx)
 	defer db.Close()
-	// pql.DeleteColumn(db, "users", "anime_ids")
+
 	pql.PrintTableColumnsNamesAndTypes(db, "users")
 	telegram_bot.StartBotAndHandleUpdates(ctx, db)
 }

@@ -71,7 +71,7 @@ func RemoveAnimeIdAndLastEpisode(ctx context.Context, db *sql.DB, userID int64, 
 	animeName := animeResp.Data.Animes[0].English
 
 	msg_str += fmt.Sprintf("Removing anime %d. %s\n", subscriptionNum, animeName)
-	pql.RemoveAnimeIdAndLastEpisode(db, userID, animeID)
+	pql.RemoveAnimeIdAndLastEpisode(ctx, db, userID, animeID)
 	return msg_str
 }
 
@@ -229,11 +229,11 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI, update tgbotapi.Upd
 		skip = false
 		defer bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, "Done"))
 	}
-	pql.SetChatID(db, user_and_msg.UserID, user_and_msg.ChatID)
+	pql.SetChatID(ctx, db, user_and_msg.UserID, user_and_msg.ChatID)
 
 	if !skip {
 
-		if pql.UserExists(db, user_and_msg.UserID) {
+		if pql.UserExists(ctx, db, user_and_msg.UserID) {
 			logger.Info("Found user in DB", "User ID", user_and_msg.UserID)
 		} else {
 			enabled := false
@@ -261,15 +261,15 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI, update tgbotapi.Upd
 
 		if handle_update_mode == HandleUpdateModeBasic {
 			if user_and_msg.Text == "enable" {
-				pql.SetEnabled(db, user_and_msg.UserID, true)
-				pql.GetEnabled(db, user_and_msg.UserID)
+				pql.SetEnabled(ctx, db, user_and_msg.UserID, true)
+				pql.GetEnabled(ctx, db, user_and_msg.UserID)
 				msg_str += "You have enabled subscription notifications!\n"
 			} else if user_and_msg.Text == "disable" {
-				pql.SetEnabled(db, user_and_msg.UserID, false)
-				pql.GetEnabled(db, user_and_msg.UserID)
+				pql.SetEnabled(ctx, db, user_and_msg.UserID, false)
+				pql.GetEnabled(ctx, db, user_and_msg.UserID)
 				msg_str += "You have disabled subscription notifications.\n"
 			} else if user_and_msg.Text == "subscriptions" {
-				slice_anime_id_and_last_episode, err := pql.GetSliceAnimeIdAndLastEpisode(db, user_and_msg.UserID)
+				slice_anime_id_and_last_episode, err := pql.GetSliceAnimeIdAndLastEpisode(ctx, db, user_and_msg.UserID)
 
 				if err != nil {
 					logger.Error("Error reading your list of subscritions", "error", err)
@@ -296,7 +296,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI, update tgbotapi.Upd
 				usersMapHandleUpdMode[user_and_msg.UserID] = HandleUpdateModeSearch
 				msg_str += "Enter a name of anime in english to search it.\n"
 			} else if user_and_msg.Text == "remove" {
-				slice_anime_id_and_last_episode, _ := pql.GetSliceAnimeIdAndLastEpisode(db, user_and_msg.UserID)
+				slice_anime_id_and_last_episode, _ := pql.GetSliceAnimeIdAndLastEpisode(ctx, db, user_and_msg.UserID)
 				if len(slice_anime_id_and_last_episode) == 0 {
 					msg_str += "You are not subscribed to any anime notifications.\n"
 				} else {
@@ -389,8 +389,8 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI, update tgbotapi.Upd
 			animeName := usersMapLastAnimeNameList[user_and_msg.UserID][i]
 			lastEpisode := usersMapLastAnimeLastEpisodeList[user_and_msg.UserID][i]
 			usersMapHandleUpdMode[user_and_msg.UserID] = HandleUpdateModeBasic
-			pql.AddAnimeIdAndLastEpisode(db, user_and_msg.UserID, int(animeID), lastEpisode)
-			checkSubscriptionAfterAdd, err := pql.GetSliceAnimeIdAndLastEpisode(db, user_and_msg.UserID)
+			pql.AddAnimeIdAndLastEpisode(ctx, db, user_and_msg.UserID, int(animeID), lastEpisode)
+			checkSubscriptionAfterAdd, err := pql.GetSliceAnimeIdAndLastEpisode(ctx, db, user_and_msg.UserID)
 			if len(checkSubscriptionAfterAdd) == 0 {
 				log.Fatal("Something went wrong.\n")
 			}
@@ -399,7 +399,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI, update tgbotapi.Upd
 		} else if usersMapHandleUpdMode[user_and_msg.UserID] == HandleUpdateModeRemove {
 			userID := user_and_msg.UserID
 			text := user_and_msg.Text
-			list, _ := pql.GetSliceAnimeIdAndLastEpisode(db, userID)
+			list, _ := pql.GetSliceAnimeIdAndLastEpisode(ctx, db, userID)
 
 			if text == "All" {
 				for i, anime := range list {
@@ -446,7 +446,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI, update tgbotapi.Upd
 				}
 
 			}
-			list, _ = pql.GetSliceAnimeIdAndLastEpisode(db, userID)
+			list, _ = pql.GetSliceAnimeIdAndLastEpisode(ctx, db, userID)
 
 			if len(list) == 0 {
 				msg_str += "You are not subscribed to any anime notifications.\n"
@@ -533,7 +533,7 @@ func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 
 		logger.Info("Processing User ", "User ID", userID)
 
-		list, err := pql.GetSliceAnimeIdAndLastEpisode(db, userID)
+		list, err := pql.GetSliceAnimeIdAndLastEpisode(ctx, db, userID)
 		if err != nil {
 			logger.Error("Error reading subscription for user", "User ID", userID, "error", err)
 		}
@@ -550,13 +550,13 @@ func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 				storedAnimeLastEpisode := id_and_last_episode.LastEpisode
 				actualAnimeLastEpisode := anime.Data.Animes[0].EpisodesAired
 				animeStatus := anime.Data.Animes[0].Status
-				chatID := pql.GetChatID(db, userID)
+				chatID := pql.GetChatID(ctx, db, userID)
 				if animeStatus == "released" {
 					SignalAnimeComplete(bot, chatID, animeName)
-					pql.RemoveAnimeIdAndLastEpisode(db, userID, animeID)
+					pql.RemoveAnimeIdAndLastEpisode(ctx, db, userID, animeID)
 				} else if actualAnimeLastEpisode > storedAnimeLastEpisode {
 					SignalAnimeNewEpisodes(bot, chatID, animeName, actualAnimeLastEpisode)
-					pql.UpdateAnimeIdAndLastEpisode(db, userID, animeID, actualAnimeLastEpisode)
+					pql.UpdateAnimeIdAndLastEpisode(ctx, db, userID, animeID, actualAnimeLastEpisode)
 				} else {
 					logger.Info("Nothing new for User", "User ID", userID)
 				}

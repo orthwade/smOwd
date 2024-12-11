@@ -1,9 +1,11 @@
 package pql
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
+	"os"
 
 	"github.com/lib/pq"
 	_ "github.com/lib/pq"
@@ -18,17 +20,28 @@ func ConnectToDB(connStr string) (*sql.DB, error) {
 	return db, nil
 }
 
-// dbExists checks if the specified database exists.
-func DbExists(db *sql.DB, dbName string) bool {
-	fmt.Printf("Checking if db %s exists\n", dbName)
+// DbExists checks if the specified database exists.
+func DbExists(ctx context.Context, db *sql.DB, dbName string) bool {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
+
+	logger.Info("Checking if database exists", "dbName", dbName)
+
 	var exists bool
 	query := `SELECT EXISTS (
 		SELECT 1 FROM pg_database WHERE datname = $1
 	);`
+
 	err := db.QueryRow(query, dbName).Scan(&exists)
 	if err != nil {
-		log.Fatal("Error checking if database exists:", err)
+		logger.Error("Error checking if database exists", "error", err)
+		panic("Error checking if database exists") // Panic instead of log.Fatal
 	}
+
 	return exists
 }
 
@@ -38,8 +51,17 @@ func CreateDatabase(db *sql.DB, dbName string) error {
 	return err
 }
 
-func CreateTableNamedUsers(db *sql.DB) error {
-	fmt.Println("Checking if users table is already created, if not -- creating it")
+// CreateTableNamedUsers checks if the users table exists and creates it if it does not.
+func CreateTableNamedUsers(ctx context.Context, db *sql.DB) error {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
+
+	// Log the start of the table creation process
+	logger.Info("Checking if users table is already created, if not -- creating it")
 
 	// Create the table with the specified table name
 	createTableSQL := `CREATE TABLE IF NOT EXISTS users (
@@ -50,53 +72,101 @@ func CreateTableNamedUsers(db *sql.DB) error {
 	// Execute the SQL statement
 	_, err := db.Exec(createTableSQL)
 	if err != nil {
-		return fmt.Errorf("error creating table: %w", err) // Return a wrapped error with a descriptive message
+		logger.Error("Error creating table", "error", err)
+		panic("Error creating table") // Panic instead of log.Fatal
 	}
 
-	// If no error, print success message
-	fmt.Println("Table users created successfully (or already exists)")
+	// Log the success message
+	logger.Info("Table users created successfully (or already exists)")
+
 	return nil
 }
 
-func UserExists(db *sql.DB, userID int64) bool {
+// UserExists checks if a user with the specified userID exists in the users table.
+func UserExists(ctx context.Context, db *sql.DB, userID int64) bool {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
+
+	// Log that we're checking if the user exists
+	logger.Info("Checking if user exists", "userID", userID)
+
 	var exists bool
 	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", userID).Scan(&exists)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("Error checking if user exists", "userID", userID, "error", err)
+		panic("Error checking if user exists") // Panic instead of log.Fatal
 	}
+
 	return exists
 }
 
-func SetEnabled(db *sql.DB, userID int64, newEnabledStatus bool) {
+func SetEnabled(ctx context.Context, db *sql.DB, userID int64, newEnabledStatus bool) {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
+
+	// Update the user's enabled status
 	_, err := db.Exec(`
 		UPDATE users
 		SET enabled = $1
 		WHERE id = $2;`, newEnabledStatus, userID)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("Error updating user enabled status", "userID", userID, "error", err)
+		panic("Error updating user enabled status")
 	}
+
+	// Check if the user exists after update
 	var exists bool
 	err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", userID).Scan(&exists)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("Error checking if user exists after update", "userID", userID, "error", err)
+		panic("Error checking if user exists after update")
 	}
 }
-func SetChatID(db *sql.DB, userID int64, chatID int64) {
+
+func SetChatID(ctx context.Context, db *sql.DB, userID int64, chatID int64) {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
+
+	// Update the user's chat ID
 	_, err := db.Exec(`
 		UPDATE users
 		SET chat_id = $1
 		WHERE id = $2;`, chatID, userID)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("Error updating user chat ID", "userID", userID, "chatID", chatID, "error", err)
+		panic("Error updating user chat ID")
 	}
+
+	// Check if the user exists after the update
 	var exists bool
 	err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", userID).Scan(&exists)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("Error checking if user exists after chat ID update", "userID", userID, "error", err)
+		panic("Error checking if user exists after chat ID update")
 	}
 }
 
-func GetEnabled(db *sql.DB, userID int64) bool {
+func GetEnabled(ctx context.Context, db *sql.DB, userID int64) bool {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
+
+	// Query the user's enabled status
 	var enabled bool
 	err := db.QueryRow(`
 		SELECT enabled
@@ -104,9 +174,10 @@ func GetEnabled(db *sql.DB, userID int64) bool {
 		WHERE id = $1;`, userID).Scan(&enabled)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			fmt.Println("No user found with that ID.")
+			logger.Info("No user found with that ID", "userID", userID)
 		} else {
-			log.Fatal(err)
+			logger.Error("Error retrieving user enabled status", "userID", userID, "error", err)
+			panic("Error retrieving user enabled status")
 		}
 	} else {
 		var str_ string
@@ -115,12 +186,21 @@ func GetEnabled(db *sql.DB, userID int64) bool {
 		} else {
 			str_ = "DISABLED"
 		}
-		fmt.Printf("User %d status is %s\n", userID, str_)
+		logger.Info("User status", "userID", userID, "status", str_)
 	}
 
 	return enabled
 }
-func GetChatID(db *sql.DB, userID int64) int64 {
+
+func GetChatID(ctx context.Context, db *sql.DB, userID int64) int64 {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
+
+	// Query the user's chat ID
 	var chatID int64
 	err := db.QueryRow(`
 		SELECT chat_id
@@ -128,16 +208,24 @@ func GetChatID(db *sql.DB, userID int64) int64 {
 		WHERE id = $1;`, userID).Scan(&chatID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			fmt.Println("No user found with that ID.")
+			logger.Info("No user found with that ID", "userID", userID)
 		} else {
-			log.Fatal(err)
+			logger.Error("Error retrieving user chat ID", "userID", userID, "error", err)
+			panic("Error retrieving user chat ID")
 		}
 	}
 
 	return chatID
 }
 
-func AddAnimeId(db *sql.DB, userID int64, newAnimeID int64) {
+func AddAnimeId(ctx context.Context, db *sql.DB, userID int64, newAnimeID int64) {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
+
 	// Update the anime_ids array for the user if the anime_id is not already present
 	_, err := db.Exec(`
 		UPDATE users
@@ -149,13 +237,22 @@ func AddAnimeId(db *sql.DB, userID int64, newAnimeID int64) {
 		WHERE id = $2;`,
 		newAnimeID, userID)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("Error adding anime ID", "userID", userID, "animeID", newAnimeID, "error", err)
+		panic("Error adding anime ID")
 	}
-	fmt.Println("Anime ID added if not already present.")
+
+	logger.Info("Anime ID added if not already present", "userID", userID, "animeID", newAnimeID)
 }
 
 // GetSliceAnimeId retrieves the anime_ids array for a specific user
-func GetSliceAnimeId(db *sql.DB, userID int64) []int64 {
+func GetSliceAnimeId(ctx context.Context, db *sql.DB, userID int64) []int64 {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
+
 	// Declare a slice to hold the anime_ids
 	var animeIDs pq.Int64Array // This will automatically handle the PostgreSQL array type
 
@@ -166,20 +263,27 @@ func GetSliceAnimeId(db *sql.DB, userID int64) []int64 {
 		WHERE id = $1;`, userID).Scan(pq.Array(&animeIDs)) // Use pq.Array to scan the array
 	if err != nil {
 		if err == sql.ErrNoRows {
-			fmt.Println("No user found with that ID.")
+			logger.Info("No user found with that ID", "userID", userID)
 		} else {
-			log.Fatal(err)
+			logger.Error("Error retrieving anime IDs", "userID", userID, "error", err)
+			panic("Error retrieving anime IDs")
 		}
 	} else {
-		// Print the retrieved anime_ids slice
-		fmt.Printf("Anime IDs for user %d: %v\n", userID, animeIDs)
+		// Log the retrieved anime_ids slice
+		logger.Info("Retrieved anime IDs", "userID", userID, "animeIDs", animeIDs)
 	}
 
 	// Convert the pq.Int64Array to a regular []int64 slice and return
 	return animeIDs
 }
 
-func SetUser(db *sql.DB, userID int64, enabled bool, anime_id []int64) {
+func SetUser(ctx context.Context, db *sql.DB, userID int64, enabled bool, anime_id []int64) {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
 
 	// Insert the user, or update if a conflict on the primary key occurs
 	_, err := db.Exec(`
@@ -189,26 +293,43 @@ func SetUser(db *sql.DB, userID int64, enabled bool, anime_id []int64) {
 		SET enabled = EXCLUDED.enabled, anime_ids = EXCLUDED.anime_ids`,
 		userID, enabled, pq.Array(anime_id))
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("Error inserting or updating user", "userID", userID, "error", err)
+		panic("Error inserting or updating user")
 	}
-	fmt.Println("User inserted or updated successfully")
+
+	logger.Info("User inserted or updated successfully", "userID", userID)
 }
 
-func DeleteColumn(db *sql.DB, table_name string, column_name string) {
+func DeleteColumn(ctx context.Context, db *sql.DB, table_name string, column_name string) {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
+
 	// Query to drop the anime_ids column
 	query := fmt.Sprintf(`ALTER TABLE %s DROP COLUMN %s;`, table_name, column_name)
 
 	// Execute the query
 	_, err := db.Exec(query)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("Error deleting column", "table", table_name, "column", column_name, "error", err)
+		panic("Error deleting column")
 	}
 
-	// Print success message
-	fmt.Printf("Column %s has been removed successfully.", column_name)
+	// Log success message
+	logger.Info("Column removed successfully", "column", column_name)
 }
 
-func IsCustomTypeCreated(db *sql.DB, custom_type_name string) bool {
+func IsCustomTypeCreated(ctx context.Context, db *sql.DB, custom_type_name string) bool {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
+
 	// Check if the custom type exists
 	var exists bool
 	query := `
@@ -220,15 +341,22 @@ func IsCustomTypeCreated(db *sql.DB, custom_type_name string) bool {
     `
 	err := db.QueryRow(query, custom_type_name).Scan(&exists)
 	if err != nil {
-		log.Fatal("Failed to check if type exists:", err)
+		logger.Error("Failed to check if custom type exists", "custom_type_name", custom_type_name, "error", err)
+		panic("Failed to check if custom type exists")
 	}
 
 	return exists
 }
 
-func CreateCustomTypeAnimeIdAndLastEpisode(db *sql.DB) {
-	// Create the custom type if it doesn't exist
+func CreateCustomTypeAnimeIdAndLastEpisode(ctx context.Context, db *sql.DB) {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
 
+	// Create the custom type if it doesn't exist
 	var currentUser string
 	err := db.QueryRow("SELECT current_user;").Scan(&currentUser)
 
@@ -241,24 +369,42 @@ func CreateCustomTypeAnimeIdAndLastEpisode(db *sql.DB) {
         `, typeName)
 	_, err = db.Exec(createTypeQuery)
 	if err != nil {
-		log.Fatal("Failed to create type:", err)
+		logger.Error("Failed to create custom type", "type_name", typeName, "error", err)
+		panic("Failed to create custom type")
 	}
-	fmt.Printf("Custom type '%s' created successfully!\n", typeName)
+
+	logger.Info("Custom type created successfully", "type_name", typeName)
 }
 
-func CheckAnimeIdAndLastEpisodeColumn(db *sql.DB) {
+func CheckAnimeIdAndLastEpisodeColumn(ctx context.Context, db *sql.DB) {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
+
 	alterTableQuery := `
 	ALTER TABLE users
 	ADD COLUMN IF NOT EXISTS anime_data anime_id_and_last_episode[];
 `
 	_, err := db.Exec(alterTableQuery)
 	if err != nil {
-		log.Fatal("Failed to alter table:", err)
+		logger.Error("Failed to alter table", "error", err)
+		panic("Failed to alter table")
 	}
-	fmt.Println("Table 'users' altered to add 'anime_data' column.")
+
+	logger.Info("Table 'users' altered to add 'anime_data' column")
 }
 
-func CheckChatIdColumn(db *sql.DB) {
+func CheckChatIdColumn(ctx context.Context, db *sql.DB) {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
+
 	// Query to add 'chat_id' column if it doesn't exist
 	alterTableQuery := `
 		ALTER TABLE users
@@ -267,11 +413,12 @@ func CheckChatIdColumn(db *sql.DB) {
 
 	_, err := db.Exec(alterTableQuery)
 	if err != nil {
-		log.Fatal("Failed to alter table:", err)
+		logger.Error("Failed to alter table", "error", err)
+		panic("Failed to alter table")
 		return
 	}
 
-	fmt.Println("Table 'users' altered to add 'chat_id' column.")
+	logger.Info("Table 'users' altered to add 'chat_id' column")
 }
 
 type AnimeIDAndLastEpisode struct {
@@ -280,7 +427,14 @@ type AnimeIDAndLastEpisode struct {
 }
 
 // GetSliceAnimeIdAndLastEpisode retrieves the anime data for a user from the database
-func GetSliceAnimeIdAndLastEpisode(db *sql.DB, userID int64) ([]AnimeIDAndLastEpisode, error) {
+func GetSliceAnimeIdAndLastEpisode(ctx context.Context, db *sql.DB, userID int64) ([]AnimeIDAndLastEpisode, error) {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
+
 	// Prepare the query to select the anime_data array for the user
 	query := `SELECT anime_data FROM users WHERE id = $1`
 
@@ -292,8 +446,10 @@ func GetSliceAnimeIdAndLastEpisode(db *sql.DB, userID int64) ([]AnimeIDAndLastEp
 	if err := row.Scan(pq.Array(&animeData)); err != nil {
 		// If no data is found or any error occurs
 		if err == sql.ErrNoRows {
+			logger.Info("No anime data found for user", "userID", userID)
 			return nil, fmt.Errorf("no anime data found for user ID %d", userID)
 		}
+		logger.Error("Failed to retrieve anime data", "userID", userID, "error", err)
 		return nil, fmt.Errorf("failed to retrieve anime data: %v", err)
 	}
 
@@ -304,7 +460,7 @@ func GetSliceAnimeIdAndLastEpisode(db *sql.DB, userID int64) ([]AnimeIDAndLastEp
 		var animeID, lastEpisode int
 		// Parsing the array element into AnimeIDAndLastEpisode struct
 		if _, err := fmt.Sscanf(elem, "(%d,%d)", &animeID, &lastEpisode); err != nil {
-			log.Printf("Error parsing array element %v: %v", elem, err)
+			logger.Error("Error parsing array element", "element", elem, "error", err)
 			continue
 		}
 		result = append(result, AnimeIDAndLastEpisode{
@@ -316,14 +472,21 @@ func GetSliceAnimeIdAndLastEpisode(db *sql.DB, userID int64) ([]AnimeIDAndLastEp
 	return result, nil
 }
 
-func AddAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int, lastEpisode int) {
+func AddAnimeIdAndLastEpisode(ctx context.Context, db *sql.DB, userID int64, animeID int, lastEpisode int) {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
 
 	// Step 1: Retrieve the current anime_data for userID
 	var currentAnimeData []AnimeIDAndLastEpisode
 	query := "SELECT anime_data FROM users WHERE id = $1"
 	rows, err := db.Query(query, userID) // Get data for userID
 	if err != nil {
-		log.Fatal("Failed to retrieve data:", err)
+		logger.Error("Failed to retrieve data", "userID", userID, "error", err)
+		panic("Failed to retrieve data")
 	}
 	defer rows.Close()
 
@@ -331,7 +494,8 @@ func AddAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int, lastEpisode
 	for rows.Next() {
 		var animeData []string                                  // Slice of strings to hold the PostgreSQL array
 		if err := rows.Scan(pq.Array(&animeData)); err != nil { // Use pq.Array to scan into slice
-			log.Fatal("Failed to scan rows:", err)
+			logger.Error("Failed to scan rows", "userID", userID, "error", err)
+			panic("Failed to scan rows")
 		}
 
 		// Convert the array of strings into AnimeIDAndLastEpisode
@@ -366,17 +530,25 @@ func AddAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int, lastEpisode
 	// Execute the update query with the new array
 	_, err = db.Exec(updateQuery, pq.Array(updatedAnimeData), userID)
 	if err != nil {
-		log.Fatal("Failed to update anime_data:", err)
+		logger.Error("Failed to update anime_data", "userID", userID, "error", err)
+		panic("Failed to update anime_data")
 	}
 
-	fmt.Println("Successfully appended new anime data and updated the database.")
+	logger.Info("Successfully appended new anime data and updated the database", "userID", userID)
 }
+func UpdateAnimeIdAndLastEpisode(ctx context.Context, db *sql.DB, userID int64, animeID int, lastEpisode int) {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
 
-func UpdateAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int, lastEpisode int) {
 	// Step 1: Start a new transaction
 	tx, err := db.Begin()
 	if err != nil {
-		log.Fatal("Failed to start transaction:", err)
+		logger.Error("Failed to start transaction", "userID", userID, "error", err)
+		panic("Failed to start transaction")
 	}
 	defer tx.Rollback() // Ensure rollback in case of an error
 
@@ -385,7 +557,8 @@ func UpdateAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int, lastEpis
 	query := "SELECT anime_data FROM users WHERE id = $1"
 	rows, err := tx.Query(query, userID) // Get data for userID
 	if err != nil {
-		log.Fatal("Failed to retrieve data:", err)
+		logger.Error("Failed to retrieve data", "userID", userID, "error", err)
+		panic("Failed to retrieve data")
 	}
 	defer rows.Close()
 
@@ -393,7 +566,8 @@ func UpdateAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int, lastEpis
 	for rows.Next() {
 		var animeData []string
 		if err := rows.Scan(pq.Array(&animeData)); err != nil {
-			log.Fatal("Failed to scan rows:", err)
+			logger.Error("Failed to scan rows", "userID", userID, "error", err)
+			panic("Failed to scan rows")
 		}
 
 		// Convert the array of strings into AnimeIDAndLastEpisode
@@ -435,24 +609,34 @@ func UpdateAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int, lastEpis
 	`
 	_, err = tx.Exec(updateQuery, pq.Array(updatedAnimeDataStrings), userID)
 	if err != nil {
-		log.Fatal("Failed to update anime_data:", err)
+		logger.Error("Failed to update anime_data", "userID", userID, "error", err)
+		panic("Failed to update anime_data")
 	}
 
 	// Commit the transaction
 	if err := tx.Commit(); err != nil {
-		log.Fatal("Failed to commit transaction:", err)
+		logger.Error("Failed to commit transaction", "userID", userID, "error", err)
+		panic("Failed to commit transaction")
 	}
 
-	fmt.Println("Successfully updated anime data for userID:", userID)
+	logger.Info("Successfully updated anime data for user", "userID", userID)
 }
 
-func RemoveAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int) {
+func RemoveAnimeIdAndLastEpisode(ctx context.Context, db *sql.DB, userID int64, animeID int) {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
+
 	// Step 1: Retrieve the current anime_data for userID
 	var currentAnimeData []AnimeIDAndLastEpisode
 	query := "SELECT anime_data FROM users WHERE id = $1"
 	rows, err := db.Query(query, userID) // Get data for userID
 	if err != nil {
-		log.Fatal("Failed to retrieve data:", err)
+		logger.Error("Failed to retrieve data", "userID", userID, "error", err)
+		panic("Failed to retrieve data")
 	}
 	defer rows.Close()
 
@@ -460,7 +644,8 @@ func RemoveAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int) {
 	for rows.Next() {
 		var animeData []string                                  // Slice of strings to hold the PostgreSQL array
 		if err := rows.Scan(pq.Array(&animeData)); err != nil { // Use pq.Array to scan into slice
-			log.Fatal("Failed to scan rows:", err)
+			logger.Error("Failed to scan rows", "userID", userID, "error", err)
+			panic("Failed to scan rows")
 		}
 
 		// Convert the array of strings into AnimeIDAndLastEpisode
@@ -494,8 +679,9 @@ func RemoveAnimeIdAndLastEpisode(db *sql.DB, userID int64, animeID int) {
 	`
 	_, err = db.Exec(updateQuery, pq.Array(updatedAnimeDataStrings), userID)
 	if err != nil {
-		log.Fatal("Failed to update anime_data:", err)
+		logger.Error("Failed to update anime_data", "userID", userID, "error", err)
+		panic("Failed to update anime_data")
 	}
 
-	fmt.Println("Successfully removed anime data for userID:", userID)
+	logger.Info("Successfully removed anime data for user", "userID", userID)
 }
