@@ -507,9 +507,14 @@ func TestSignalUpdate(bot *tgbotapi.BotAPI, chatID int64) {
 
 func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 	// Query all users from the users table
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
 	rows, err := db.Query("SELECT id, enabled FROM users")
 	if err != nil {
-		log.Fatal("Failed to query users:", err)
+		logger.Error("Failed to query users", "error", err)
 	}
 	defer rows.Close()
 
@@ -518,22 +523,23 @@ func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 		var userID int64
 		var enabled bool
 		if err := rows.Scan(&userID, &enabled); err != nil {
-			log.Fatal("Failed to scan row:", err)
+			logger.Error("Failed to scan row", "error", err)
 		}
 		if !enabled {
 			return
 		}
 
 		// Example processing: Print the user ID and their enabled status
-		fmt.Printf("Processing User ID: %d\n", userID)
+
+		logger.Info("Processing User ", "User ID", userID)
 
 		list, err := pql.GetSliceAnimeIdAndLastEpisode(db, userID)
 		if err != nil {
-			fmt.Printf("Error reading subscription for user: %d", userID)
+			logger.Error("Error reading subscription for user", "User ID", userID, "error", err)
 		}
 
 		if len(list) == 0 {
-			fmt.Printf("Used ID %d is not subscribed to any anime notifications.\n", userID)
+			logger.Info("Used is not subscribed to any anime notifications.\n", "User ID", userID)
 		} else {
 			for _, id_and_last_episode := range list {
 
@@ -552,7 +558,7 @@ func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 					SignalAnimeNewEpisodes(bot, chatID, animeName, actualAnimeLastEpisode)
 					pql.UpdateAnimeIdAndLastEpisode(db, userID, animeID, actualAnimeLastEpisode)
 				} else {
-					fmt.Printf("Nothing new for User %d.\n", userID)
+					logger.Info("Nothing new for User", "User ID", userID)
 				}
 				// TestSignalUpdate(bot, chatID)
 			}
@@ -563,7 +569,7 @@ func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 
 	// Check for errors in the row iteration
 	if err := rows.Err(); err != nil {
-		log.Fatal("Error reading rows:", err)
+		logger.Error("Error reading rows", "error", err)
 	}
 }
 
@@ -571,6 +577,8 @@ func StartBotAndHandleUpdates(ctx context.Context, db *sql.DB) {
 	// Get the Telegram bot token from an environment variable
 	token := os.Getenv("TELEGRAM_TOKEN")
 	if token == "" {
+		logger.Error("TELEGRAM_BOT_TOKEN is not set")
+		panic()
 		log.Fatal("TELEGRAM_BOT_TOKEN is not set")
 	}
 
@@ -637,7 +645,9 @@ func StartBotAndHandleUpdates(ctx context.Context, db *sql.DB) {
 			processUsers(ctx, db, bot)
 		case <-ctx.Done():
 			// Graceful shutdown of the main loop
-			lo.Println("Shutting down the bot.")
+			logger.Info("Found user in DB", "User ID", user_and_msg.UserID)
+
+			logger.Info("Shutting down the bot.")
 			return
 		}
 	}
