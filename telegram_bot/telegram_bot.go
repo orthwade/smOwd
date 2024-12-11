@@ -574,23 +574,30 @@ func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 }
 
 func StartBotAndHandleUpdates(ctx context.Context, db *sql.DB) {
+	// Get the logger from the context, or use a default logger if not available
+	logger, ok := ctx.Value("logger").(*slog.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
+
 	// Get the Telegram bot token from an environment variable
 	token := os.Getenv("TELEGRAM_TOKEN")
 	if token == "" {
 		logger.Error("TELEGRAM_BOT_TOKEN is not set")
-		panic()
-		log.Fatal("TELEGRAM_BOT_TOKEN is not set")
+		panic("TELEGRAM_BOT_TOKEN is not set") // Panic instead of log.Fatal
 	}
 
 	// Initialize the bot
 	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("Failed to initialize bot", "error", err)
+		panic("Failed to initialize bot") // Panic instead of log.Fatal
 	}
 
 	// Set bot to debug mode (optional)
 	bot.Debug = true
-	fmt.Println("Authorized on account", bot.Self.UserName)
+	logger.Info("Authorized on account", "UserName", bot.Self.UserName)
 
 	// Configure the update channel (long polling)
 	u := tgbotapi.NewUpdate(0)
@@ -599,7 +606,8 @@ func StartBotAndHandleUpdates(ctx context.Context, db *sql.DB) {
 	// Get updates (messages and callback queries) from Telegram
 	updates, err := bot.GetUpdatesChan(u)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("Failed to get updates", "error", err)
+		panic("Failed to get updates") // Panic instead of log.Fatal
 	}
 
 	// Create a channel to synchronize processUsers with handleUpdate
@@ -615,7 +623,7 @@ func StartBotAndHandleUpdates(ctx context.Context, db *sql.DB) {
 		signalChan := make(chan os.Signal, 1)
 		signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 		<-signalChan // Block until a signal is received
-		log.Println("Received shutdown signal, shutting down gracefully...")
+		logger.Info("Received shutdown signal, shutting down gracefully...")
 		cancel() // Trigger the shutdown process
 	}()
 
@@ -628,7 +636,7 @@ func StartBotAndHandleUpdates(ctx context.Context, db *sql.DB) {
 			case <-ticker.C:
 				processUsersChan <- true // Send signal to process users every second
 			case <-ctx.Done():
-				log.Println("Stopping user processing due to shutdown signal.")
+				logger.Info("Stopping user processing due to shutdown signal.")
 				return
 			}
 		}
@@ -645,8 +653,6 @@ func StartBotAndHandleUpdates(ctx context.Context, db *sql.DB) {
 			processUsers(ctx, db, bot)
 		case <-ctx.Done():
 			// Graceful shutdown of the main loop
-			logger.Info("Found user in DB", "User ID", user_and_msg.UserID)
-
 			logger.Info("Shutting down the bot.")
 			return
 		}

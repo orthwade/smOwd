@@ -37,28 +37,6 @@ func TestPQL() *sql.DB {
 	// }
 
 	fmt.Printf("Successfully connected to %s db\n", dbName)
-	// defer db.Close()
-	// dbName := "smowd_users"
-	// if pql.DbExists(db, dbName) {
-	// 	fmt.Println("Database already exists: ", dbName)
-	// } else {
-	// 	err := pql.CreateDatabase(db, dbName)
-	// 	if err != nil {
-	// 		log.Fatal("Error creating database: ", err)
-	// 	} else {
-	// 		fmt.Println("Database created successfully: ", dbName)
-	// 	}
-	// }
-	// db.Close()
-	// connStr = fmt.Sprintf("user=%s sslmode=disable dbname=%s", user_name, dbName)
-	// db, err = pql.ConnectToDB(connStr)
-
-	// if err != nil {
-	// 	msg := fmt.Sprintf("Error connecting to %s:", dbName)
-	// 	log.Fatal(msg, err)
-	// }
-
-	// fmt.Printf("Connected to %s\n", dbName)
 
 	custom_type_name := "anime_id_and_last_episode"
 
