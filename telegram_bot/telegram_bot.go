@@ -575,7 +575,7 @@ func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 
 func StartBotAndHandleUpdates(ctx context.Context, db *sql.DB) {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*logger.Logger)
+	logger, ok := ctx.Value("logger").(*slog.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
 		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))

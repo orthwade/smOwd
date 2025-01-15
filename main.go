@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"os"
 
-	"smOwd/logger"
 	"smOwd/pql"
 	"smOwd/telegram_bot"
 
@@ -78,6 +77,6 @@ func main() {
 	db := TestPQL(ctx)
 	defer db.Close()
 
-	pql.PrintTableColumnsNamesAndTypes(db, "users")
+	pql.PrintTableColumnsNamesAndTypes(ctx, db, "users")
 	telegram_bot.StartBotAndHandleUpdates(ctx, db)
 }
