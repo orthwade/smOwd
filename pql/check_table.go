@@ -1,14 +1,18 @@
 package pql
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
+	"smOwd/logger"
 
 	_ "github.com/lib/pq"
 )
 
-func PrintTableColumnsNamesAndTypes(db *sql.DB, table_name string) {
+func PrintTableColumnsNamesAndTypes(ctx context.Context, db *sql.DB, table_name string) {
+
+	logger := ctx.Value("logger").(*logger.Logger)
 
 	// Query to get column names and types from the users table
 	query := fmt.Sprintf(`
@@ -22,7 +26,7 @@ func PrintTableColumnsNamesAndTypes(db *sql.DB, table_name string) {
 	// Execute the query
 	rows, err := db.Query(query)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal("Error getting column names and types", "error", err)
 	}
 	defer rows.Close()
 

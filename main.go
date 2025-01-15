@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 
+	"smOwd/logger"
 	"smOwd/pql"
 	"smOwd/telegram_bot"
 
@@ -21,7 +22,7 @@ func TestPQL(ctx context.Context) *sql.DB {
 	// Load environment variables only once
 	if err := godotenv.Load(); err != nil {
 		logger.Error("Error loading .env file", "error", err)
-		log.Fatal("Error loading .env file")
+		log.Fatal()
 	}
 
 	// Load environment variables
