@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"smOwd/logs"
 
 	"github.com/lib/pq"
 	_ "github.com/lib/pq"
@@ -23,10 +24,10 @@ func ConnectToDB(connStr string) (*sql.DB, error) {
 // DbExists checks if the specified database exists.
 func DbExists(ctx context.Context, db *sql.DB, dbName string) bool {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	logger.Info("Checking if database exists", "dbName", dbName)
@@ -54,10 +55,10 @@ func CreateDatabase(db *sql.DB, dbName string) error {
 // CreateTableNamedUsers checks if the users table exists and creates it if it does not.
 func CreateTableNamedUsers(ctx context.Context, db *sql.DB) error {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	// Log the start of the table creation process
@@ -85,10 +86,10 @@ func CreateTableNamedUsers(ctx context.Context, db *sql.DB) error {
 // UserExists checks if a user with the specified userID exists in the users table.
 func UserExists(ctx context.Context, db *sql.DB, userID int64) bool {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	// Log that we're checking if the user exists
@@ -106,10 +107,10 @@ func UserExists(ctx context.Context, db *sql.DB, userID int64) bool {
 
 func SetEnabled(ctx context.Context, db *sql.DB, userID int64, newEnabledStatus bool) {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	// Update the user's enabled status
@@ -133,10 +134,10 @@ func SetEnabled(ctx context.Context, db *sql.DB, userID int64, newEnabledStatus 
 
 func SetChatID(ctx context.Context, db *sql.DB, userID int64, chatID int64) {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	// Update the user's chat ID
@@ -160,10 +161,10 @@ func SetChatID(ctx context.Context, db *sql.DB, userID int64, chatID int64) {
 
 func GetEnabled(ctx context.Context, db *sql.DB, userID int64) bool {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	// Query the user's enabled status
@@ -194,10 +195,10 @@ func GetEnabled(ctx context.Context, db *sql.DB, userID int64) bool {
 
 func GetChatID(ctx context.Context, db *sql.DB, userID int64) int64 {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	// Query the user's chat ID
@@ -220,10 +221,10 @@ func GetChatID(ctx context.Context, db *sql.DB, userID int64) int64 {
 
 func AddAnimeId(ctx context.Context, db *sql.DB, userID int64, newAnimeID int64) {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	// Update the anime_ids array for the user if the anime_id is not already present
@@ -247,10 +248,10 @@ func AddAnimeId(ctx context.Context, db *sql.DB, userID int64, newAnimeID int64)
 // GetSliceAnimeId retrieves the anime_ids array for a specific user
 func GetSliceAnimeId(ctx context.Context, db *sql.DB, userID int64) []int64 {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	// Declare a slice to hold the anime_ids
@@ -279,10 +280,10 @@ func GetSliceAnimeId(ctx context.Context, db *sql.DB, userID int64) []int64 {
 
 func SetUser(ctx context.Context, db *sql.DB, userID int64, enabled bool, anime_id []int64) {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	// Insert the user, or update if a conflict on the primary key occurs
@@ -302,10 +303,10 @@ func SetUser(ctx context.Context, db *sql.DB, userID int64, enabled bool, anime_
 
 func DeleteColumn(ctx context.Context, db *sql.DB, table_name string, column_name string) {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	// Query to drop the anime_ids column
@@ -324,10 +325,10 @@ func DeleteColumn(ctx context.Context, db *sql.DB, table_name string, column_nam
 
 func IsCustomTypeCreated(ctx context.Context, db *sql.DB, custom_type_name string) bool {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	// Check if the custom type exists
@@ -350,10 +351,10 @@ func IsCustomTypeCreated(ctx context.Context, db *sql.DB, custom_type_name strin
 
 func CreateCustomTypeAnimeIdAndLastEpisode(ctx context.Context, db *sql.DB) {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	// Create the custom type if it doesn't exist
@@ -378,10 +379,10 @@ func CreateCustomTypeAnimeIdAndLastEpisode(ctx context.Context, db *sql.DB) {
 
 func CheckAnimeIdAndLastEpisodeColumn(ctx context.Context, db *sql.DB) {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	alterTableQuery := `
@@ -399,10 +400,10 @@ func CheckAnimeIdAndLastEpisodeColumn(ctx context.Context, db *sql.DB) {
 
 func CheckChatIdColumn(ctx context.Context, db *sql.DB) {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	// Query to add 'chat_id' column if it doesn't exist
@@ -429,10 +430,10 @@ type AnimeIDAndLastEpisode struct {
 // GetSliceAnimeIdAndLastEpisode retrieves the anime data for a user from the database
 func GetSliceAnimeIdAndLastEpisode(ctx context.Context, db *sql.DB, userID int64) ([]AnimeIDAndLastEpisode, error) {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	// Prepare the query to select the anime_data array for the user
@@ -474,10 +475,10 @@ func GetSliceAnimeIdAndLastEpisode(ctx context.Context, db *sql.DB, userID int64
 
 func AddAnimeIdAndLastEpisode(ctx context.Context, db *sql.DB, userID int64, animeID int, lastEpisode int) {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	// Step 1: Retrieve the current anime_data for userID
@@ -538,10 +539,10 @@ func AddAnimeIdAndLastEpisode(ctx context.Context, db *sql.DB, userID int64, ani
 }
 func UpdateAnimeIdAndLastEpisode(ctx context.Context, db *sql.DB, userID int64, animeID int, lastEpisode int) {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	// Step 1: Start a new transaction
@@ -624,10 +625,10 @@ func UpdateAnimeIdAndLastEpisode(ctx context.Context, db *sql.DB, userID int64, 
 
 func RemoveAnimeIdAndLastEpisode(ctx context.Context, db *sql.DB, userID int64, animeID int) {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	// Step 1: Retrieve the current anime_data for userID

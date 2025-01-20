@@ -5,14 +5,14 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"smOwd/logger"
+	"smOwd/logs"
 
 	_ "github.com/lib/pq"
 )
 
 func PrintTableColumnsNamesAndTypes(ctx context.Context, db *sql.DB, table_name string) {
 
-	logger := ctx.Value("logger").(*logger.Logger)
+	logger := ctx.Value("logger").(*logs.Logger)
 
 	// Query to get column names and types from the users table
 	query := fmt.Sprintf(`

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"smOwd/logs"
 	"strconv"
 )
 
@@ -35,10 +36,10 @@ type AnimeResponse struct {
 
 func SearchAnimeById(ctx context.Context, ID int64) (AnimeResponse, error) {
 	// Retrieve the logger from the context
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	strID := strconv.FormatInt(ID, 10)
@@ -112,10 +113,10 @@ func SearchAnimeById(ctx context.Context, ID int64) (AnimeResponse, error) {
 
 func SearchAnimeByName(ctx context.Context, name string) (AnimeResponse, error) {
 	// Retrieve the logger from the context
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	// GraphQL query

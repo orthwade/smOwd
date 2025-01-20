@@ -1,5 +1,5 @@
-// logger/logger.go
-package logger
+// logs/logs.go
+package logs
 
 import (
 	"log/slog"
@@ -12,8 +12,8 @@ type Logger struct {
 	*slog.Logger
 }
 
-func New(logger *slog.Logger) *Logger {
-	return &Logger{Logger: logger}
+func New(logs *slog.Logger) *Logger {
+	return &Logger{Logger: logs}
 }
 
 func (l *Logger) Fatal(msg string, args ...interface{}) {

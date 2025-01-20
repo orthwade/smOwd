@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"smOwd/logs"
 	"sort"
 	"strconv"
 	"strings"
@@ -206,10 +207,10 @@ func checkCommaSeparatedIntegers(s string) (bool, []int) {
 // Unified function to handle both messages and inline button callbacks
 func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI, update tgbotapi.Update, db *sql.DB) {
 	// Retrieve the logger from the context
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 	var user_and_msg UserAndMessage
 	var msg tgbotapi.MessageConfig
@@ -507,10 +508,10 @@ func TestSignalUpdate(bot *tgbotapi.BotAPI, chatID int64) {
 
 func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 	// Query all users from the users table
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 	rows, err := db.Query("SELECT id, enabled FROM users")
 	if err != nil {
@@ -575,10 +576,10 @@ func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 
 func StartBotAndHandleUpdates(ctx context.Context, db *sql.DB) {
 	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*slog.Logger)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		// If the logger is not found in the context, fall back to a default logger
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	// Get the Telegram bot token from an environment variable
