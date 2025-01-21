@@ -27,13 +27,14 @@ func LoadEnv(ctx context.Context) {
 }
 
 func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	logger := logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 
 	ctx := context.WithValue(context.Background(), "logger", logger)
 
 	LoadEnv(ctx)
 
 	db := pql.ConnectToDatabaseSubscriptions(ctx)
+	pql.PrintTableColumnsNamesAndTypes(ctx, db, "users")
 	defer db.Close()
 
 	// db := pql.ConnectToDatabaseSubscriptions(ctx)

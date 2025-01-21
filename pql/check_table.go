@@ -4,54 +4,50 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
+	"os"
 	"smOwd/logs"
+	"strings"
 
 	_ "github.com/lib/pq"
 )
 
-func PrintTableColumnsNamesAndTypes(ctx context.Context, db *sql.DB, table_name string) {
+func PrintTableColumnsNamesAndTypes(ctx context.Context, db *sql.DB, tableName string) {
 
-	logger := ctx.Value("logger").(*logs.Logger)
-
-	// Query to get column names and types from the users table
-	query := fmt.Sprintf(`
-		SELECT c.column_name, c.data_type, t.typname AS array_element_type
-		FROM information_schema.columns c
-		LEFT JOIN pg_catalog.pg_type t 
-			ON c.udt_name = t.typname
-		WHERE c.table_name = '%s'
-	`, table_name)
+	logger, ok := ctx.Value("logger").(*logs.Logger)
+	if !ok {
+		// If the logger is not found in the context, fall back to a default logger
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	}
+	// Query to get table structure
+	query := `
+		SELECT column_name, data_type, is_nullable
+		FROM information_schema.columns
+		WHERE table_name = $1;
+	`
 
 	// Execute the query
-	rows, err := db.Query(query)
+	rows, err := db.Query(query, tableName)
 	if err != nil {
-		logger.Fatal("Error getting column names and types", "error", err)
+		logger.Fatal("Query failed", "error", err)
 	}
 	defer rows.Close()
 
-	// Print the column names and types
-	fmt.Println("Column Name | Data Type       | Array Element Type")
-	fmt.Println("---------------------------------------------------")
-	for rows.Next() {
-		var columnName, dataType, arrayElementType sql.NullString
-		err := rows.Scan(&columnName, &dataType, &arrayElementType)
-		if err != nil {
-			log.Fatal(err)
-		}
+	// Print the table structure
+	fmt.Printf("Structure of %s table:\n", tableName)
+	fmt.Printf("%-20s %-15s %-10s\n", "Column Name", "Data Type", "Is Nullable")
+	fmt.Println(strings.Repeat("-", 50))
 
-		// Check if the column is an array
-		if dataType.String == "ARRAY" && arrayElementType.Valid {
-			// If it's an array, print the element type
-			fmt.Printf("%-12s | %-15s | %s\n", columnName.String, dataType.String, arrayElementType.String)
-		} else {
-			// If it's not an array, just print the data type
-			fmt.Printf("%-12s | %-15s | N/A\n", columnName.String, dataType.String)
+	for rows.Next() {
+		var columnName, dataType, isNullable string
+		if err := rows.Scan(&columnName, &dataType, &isNullable); err != nil {
+			logger.Fatal("Failed to scan row", "error", err)
 		}
+		fmt.Printf("%-20s %-15s %-10s\n", columnName, dataType, isNullable)
 	}
 
-	// Check for errors from iterating over rows
+	// Check for errors after iterating through rows
 	if err := rows.Err(); err != nil {
-		log.Fatal(err)
+		logger.Fatal("Error iterating rows", "error", err)
 	}
 }
