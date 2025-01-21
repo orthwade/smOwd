@@ -21,9 +21,7 @@ func ConnectToDB(connStr string) (*sql.DB, error) {
 	return db, nil
 }
 
-func CheckIfDatabaseSubscriptionsExists(ctx context.Context) bool {
-	var result bool
-
+func ConnectToDatabasePostgres(ctx context.Context) *sql.DB {
 	logger, ok := ctx.Value("logger").(*logs.Logger)
 
 	if !ok {
@@ -32,9 +30,6 @@ func CheckIfDatabaseSubscriptionsExists(ctx context.Context) bool {
 
 	dbHost := os.Getenv("DB_HOST")
 	dbPort := os.Getenv("DB_PORT")
-	// dbUser := os.Getenv("DB_USER")
-	// dbPassword := os.Getenv("DB_PASSWORD")
-	// dbName := os.Getenv("DB_NAME")
 	dbSuperuser := os.Getenv("DB_SUPERUSER")
 	dbSuperuserPassword := os.Getenv("DB_SUPERUSER_PASSWORD")
 	dbDefaultName := os.Getenv("DB_DEFAULT_NAME")
@@ -43,7 +38,6 @@ func CheckIfDatabaseSubscriptionsExists(ctx context.Context) bool {
 		dbSuperuser, dbSuperuserPassword, dbHost, dbPort, dbDefaultName)
 
 	db, err := sql.Open(dbDefaultName, connStr)
-	defer db.Close()
 
 	if err != nil {
 		logger.Fatal("Error connecting to default database postgres", "error", err)
@@ -51,9 +45,25 @@ func CheckIfDatabaseSubscriptionsExists(ctx context.Context) bool {
 		logger.Info("Succesfully connected to default database postgres")
 	}
 
-	err = db.QueryRow(`SELECT EXISTS (
+	return db
+}
+
+func CheckIfDatabaseSubscriptionsExists(ctx context.Context, postgresDb *sql.DB) bool {
+	var result bool
+
+	logger, ok := ctx.Value("logger").(*logs.Logger)
+
+	if !ok {
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	}
+
+	err := postgresDb.QueryRow(`SELECT EXISTS (
 	SELECT 1 FROM pg_catalog.pg_database WHERE datname = 'subscriptions'
 	);`).Scan(&result)
+
+	if err != nil {
+		logger.Fatal("Error checking if db subscriptions exists", "fatal", err)
+	}
 
 	return result
 }
@@ -65,6 +75,16 @@ func ConnectToDatabaseSubscriptions(ctx context.Context) *sql.DB {
 	if !ok {
 		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
+
+	postgresDb := ConnectToDatabasePostgres(ctx)
+
+	if !CheckIfDatabaseSubscriptionsExists(ctx, postgresDb) {
+		logger.Fatal("Database subscriptions doesn't exists")
+	} else {
+		logger.Info("Database subscriptions found. Attempting connection")
+	}
+
+	postgresDb.Close()
 
 	dbHost := os.Getenv("DB_HOST")
 	dbPort := os.Getenv("DB_PORT")

@@ -33,7 +33,8 @@ func main() {
 
 	LoadEnv(ctx)
 
-	pql.CheckIfDatabaseSubscriptionsExists(ctx)
+	db := pql.ConnectToDatabaseSubscriptions(ctx)
+	defer db.Close()
 
 	// db := pql.ConnectToDatabaseSubscriptions(ctx)
 	// defer db.Close()
