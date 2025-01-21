@@ -21,6 +21,69 @@ func ConnectToDB(connStr string) (*sql.DB, error) {
 	return db, nil
 }
 
+func CheckIfDatabaseSubscriptionsExists(ctx context.Context) bool {
+	var result bool
+
+	logger, ok := ctx.Value("logger").(*logs.Logger)
+
+	if !ok {
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	}
+
+	dbHost := os.Getenv("DB_HOST")
+	dbPort := os.Getenv("DB_PORT")
+	// dbUser := os.Getenv("DB_USER")
+	// dbPassword := os.Getenv("DB_PASSWORD")
+	// dbName := os.Getenv("DB_NAME")
+	dbSuperuser := os.Getenv("DB_SUPERUSER")
+	dbSuperuserPassword := os.Getenv("DB_SUPERUSER_PASSWORD")
+	dbDefaultName := os.Getenv("DB_DEFAULT_NAME")
+
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		dbSuperuser, dbSuperuserPassword, dbHost, dbPort, dbDefaultName)
+
+	db, err := sql.Open(dbDefaultName, connStr)
+	defer db.Close()
+
+	if err != nil {
+		logger.Fatal("Error connecting to default database postgres", "error", err)
+	} else {
+		logger.Info("Succesfully connected to default database postgres")
+	}
+
+	err = db.QueryRow(`SELECT EXISTS (
+	SELECT 1 FROM pg_catalog.pg_database WHERE datname = 'subscriptions'
+	);`).Scan(&result)
+
+	return result
+}
+
+func ConnectToDatabaseSubscriptions(ctx context.Context) *sql.DB {
+	// Get the logger from the context
+	logger, ok := ctx.Value("logger").(*logs.Logger)
+
+	if !ok {
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	}
+
+	dbHost := os.Getenv("DB_HOST")
+	dbPort := os.Getenv("DB_PORT")
+	dbUser := os.Getenv("DB_USER")
+	dbPassword := os.Getenv("DB_PASSWORD")
+	dbName := os.Getenv("DB_NAME")
+
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		dbUser, dbPassword, dbHost, dbPort, dbName)
+
+	db, err := ConnectToDB(connStr)
+	if err != nil {
+		logger.Fatal("Error connecting to database", "error", err)
+	}
+	logger.Info("Successfully connected to database", "db", dbName)
+
+	return db
+}
+
 // DbExists checks if the specified database exists.
 func DbExists(ctx context.Context, db *sql.DB, dbName string) bool {
 	// Get the logger from the context, or use a default logger if not available
