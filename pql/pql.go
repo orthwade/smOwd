@@ -104,6 +104,29 @@ func ConnectToDatabaseSubscriptions(ctx context.Context) *sql.DB {
 	return db
 }
 
+func CheckTable(ctx context.Context, db *sql.DB, tableName string) (bool, error) {
+	logger, ok := ctx.Value("logger").(*logs.Logger)
+	if !ok {
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	}
+
+	query := `
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.tables
+			WHERE table_name = $1
+		);
+	`
+	var exists bool
+	err := db.QueryRowContext(ctx, query, tableName).Scan(&exists)
+	if err != nil {
+		logger.Error("Failed to check if table exists", "error", err)
+		return false, err
+	}
+
+	return exists, nil
+}
+
 // DbExists checks if the specified database exists.
 func DbExists(ctx context.Context, db *sql.DB, dbName string) bool {
 	// Get the logger from the context, or use a default logger if not available

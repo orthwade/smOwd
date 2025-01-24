@@ -10,6 +10,7 @@ import (
 
 	"smOwd/pql"
 	// "smOwd/telegram_bot"
+	"smOwd/users"
 
 	"github.com/joho/godotenv"
 )
@@ -33,7 +34,17 @@ func main() {
 
 	LoadEnv(ctx)
 
-	db := pql.ConnectToDatabaseSubscriptions(ctx)
+	db := pql.ConnectToDatabasePostgres(ctx)
+
+	table_exists := users.CheckTable(ctx, db)
+
+	if table_exists {
+		logger.Info("Table users")
+	}
+
+	db.Close()
+
+	db = pql.ConnectToDatabaseSubscriptions(ctx)
 	pql.PrintTableColumnsNamesAndTypes(ctx, db, "users")
 	defer db.Close()
 
