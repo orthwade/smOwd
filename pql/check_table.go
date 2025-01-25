@@ -12,11 +12,11 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func PrintTableColumnsNamesAndTypes(ctx context.Context, db *sql.DB, tableName string) {
+func PrintTableColumnsNamesAndTypes(
+	ctx context.Context, db *sql.DB, tableName string) {
 
 	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
-		// If the logger is not found in the context, fall back to a default logger
 		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 	// Query to get table structure

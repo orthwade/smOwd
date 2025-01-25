@@ -10,6 +10,8 @@ import (
 
 	"smOwd/pql"
 	// "smOwd/telegram_bot"
+	"database/sql"
+	"smOwd/animes"
 	"smOwd/users"
 
 	"github.com/joho/godotenv"
@@ -27,30 +29,47 @@ func LoadEnv(ctx context.Context) {
 	}
 }
 
+func CreateTableIfNotExistAndPrintInfo(ctx context.Context,
+	db *sql.DB, tableName string,
+	createFunc func(context.Context, *sql.DB) error) {
+
+	logger, ok := ctx.Value("logger").(*logs.Logger)
+	if !ok {
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	}
+	tableExists, _ := pql.CheckTable(ctx, db, tableName)
+
+	if tableExists {
+		logger.Info("Table " + tableName + " already created")
+	} else {
+		logger.Warn("Table " + tableName +
+			" isn't created yet. Attempting create")
+		createFunc(ctx, db)
+	}
+
+	pql.PrintTableColumnsNamesAndTypes(ctx, db, tableName)
+}
+
 func main() {
+	// Initialize logger
 	logger := logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 
-	ctx := context.WithValue(context.Background(), "logger", logger)
+	// Create context with logger
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ctx = context.WithValue(ctx, "logger", logger)
 
 	LoadEnv(ctx)
 
-	db := pql.ConnectToDatabasePostgres(ctx)
+	postgresDb := pql.ConnectToDatabasePostgres(ctx)
 
-	table_exists := users.CheckTable(ctx, db)
-
-	if table_exists {
-		logger.Info("Table users")
-	}
-
-	db.Close()
-
-	db = pql.ConnectToDatabaseSubscriptions(ctx)
-	pql.PrintTableColumnsNamesAndTypes(ctx, db, "users")
+	db := pql.ConnectToDatabaseSubscriptions(ctx, postgresDb)
 	defer db.Close()
 
-	// db := pql.ConnectToDatabaseSubscriptions(ctx)
-	// defer db.Close()
+	postgresDb.Close()
 
-	// pql.PrintTableColumnsNamesAndTypes(ctx, db, "users")
-	// telegram_bot.StartBotAndHandleUpdates(ctx, db)
+	CreateTableIfNotExistAndPrintInfo(ctx, db, "users", users.CreateTable)
+	CreateTableIfNotExistAndPrintInfo(ctx, db, "animes", animes.CreateTable)
+
 }

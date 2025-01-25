@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"smOwd/logs"
+	"smOwd/pql"
 )
 
 type Anime struct {
@@ -86,12 +87,12 @@ func Get(ctx context.Context, db *sql.DB, shikiID int) (*Anime, error) {
 
 	var a Anime
 	err := db.QueryRowContext(ctx, query, shikiID).Scan(
-		&a.ShikiID       
-		&a.MalId         
-		&a.English       
-		&a.Japanese      
-		&a.Episodes      
-		&a.EpisodesAired 
+		&a.ShikiID,
+		&a.MalId,
+		&a.English,
+		&a.Japanese,
+		&a.Episodes,
+		&a.EpisodesAired,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -102,8 +103,8 @@ func Get(ctx context.Context, db *sql.DB, shikiID int) (*Anime, error) {
 		return nil, err
 	}
 
-	logger.Info(fmt.Sprintf("Anime with ShikiID %d retrieved successfully", telegramID))
-	return &u, nil
+	logger.Info(fmt.Sprintf("Anime with ShikiID %d retrieved successfully", shikiID))
+	return &a, nil
 }
 
 func Remove(ctx context.Context, db *sql.DB, shikiID int) error {

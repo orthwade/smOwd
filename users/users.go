@@ -24,7 +24,9 @@ func CheckTable(ctx context.Context, db *sql.DB) (bool, error) {
 	return pql.CheckTable(ctx, db, "users")
 }
 
-func CreateTable(ctx context.Context, db *sql.DB, tableName string) error {
+func CreateTable(ctx context.Context, db *sql.DB) error {
+	tableName := "users"
+
 	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
@@ -44,7 +46,7 @@ func CreateTable(ctx context.Context, db *sql.DB, tableName string) error {
 
 	_, err := db.ExecContext(ctx, createTableQuery)
 	if err != nil {
-		logger.Error("Failed to create table", "table", tableName, "error", err)
+		logger.Fatal("Failed to create table", "table", tableName, "error", err)
 		return err
 	}
 

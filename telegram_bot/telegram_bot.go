@@ -575,25 +575,20 @@ func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 }
 
 func StartBotAndHandleUpdates(ctx context.Context, db *sql.DB) {
-	// Get the logger from the context, or use a default logger if not available
 	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
-		// If the logger is not found in the context, fall back to a default logger
 		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
-	// Get the Telegram bot token from an environment variable
 	token := os.Getenv("TELEGRAM_TOKEN")
 	if token == "" {
 		logger.Error("TELEGRAM_BOT_TOKEN is not set")
 		panic("TELEGRAM_BOT_TOKEN is not set") // Panic instead of log.Fatal
 	}
 
-	// Initialize the bot
 	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
-		logger.Error("Failed to initialize bot", "error", err)
-		panic("Failed to initialize bot") // Panic instead of log.Fatal
+		logger.Fatal("Failed to initialize bot", "error", err)
 	}
 
 	// Set bot to debug mode (optional)

@@ -68,15 +68,13 @@ func CheckIfDatabaseSubscriptionsExists(ctx context.Context, postgresDb *sql.DB)
 	return result
 }
 
-func ConnectToDatabaseSubscriptions(ctx context.Context) *sql.DB {
+func ConnectToDatabaseSubscriptions(ctx context.Context, postgresDb *sql.DB) *sql.DB {
 	// Get the logger from the context
 	logger, ok := ctx.Value("logger").(*logs.Logger)
 
 	if !ok {
 		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
-
-	postgresDb := ConnectToDatabasePostgres(ctx)
 
 	if !CheckIfDatabaseSubscriptionsExists(ctx, postgresDb) {
 		logger.Fatal("Database subscriptions doesn't exists")
