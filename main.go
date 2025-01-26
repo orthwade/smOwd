@@ -11,7 +11,8 @@ import (
 	"database/sql"
 	"smOwd/animes"
 	"smOwd/pql"
-	"smOwd/tgbot"
+
+	// "smOwd/tgbot"
 	"smOwd/users"
 	"time"
 
@@ -64,7 +65,7 @@ func simulateFatal(ctx context.Context) {
 }
 
 func testGracefulShutdown(cancel context.CancelFunc) {
-	time.Sleep(1 + time.Second)
+	time.Sleep(2 * time.Second)
 	cancel()
 }
 
@@ -90,6 +91,6 @@ func main() {
 	CreateTableIfNotExistAndPrintInfo(ctx, db, "users", users.CreateTable)
 	CreateTableIfNotExistAndPrintInfo(ctx, db, "animes", animes.CreateTable)
 
-	tgbot.StartBotAndHandleUpdates(ctx, cancel, db)
+	// tgbot.StartBotAndHandleUpdates(ctx, cancel, db)
 
 }

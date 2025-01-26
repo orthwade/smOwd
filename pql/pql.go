@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"smOwd/logs"
+	"strings"
 
 	"github.com/lib/pq"
 	_ "github.com/lib/pq"
@@ -50,6 +51,7 @@ func ConnectToDatabasePostgres(ctx context.Context) *sql.DB {
 
 func CheckIfDatabaseSubscriptionsExists(ctx context.Context, postgresDb *sql.DB) bool {
 	var result bool
+	dbName := os.Getenv("DB_NAME")
 
 	logger, ok := ctx.Value("logger").(*logs.Logger)
 
@@ -57,12 +59,14 @@ func CheckIfDatabaseSubscriptionsExists(ctx context.Context, postgresDb *sql.DB)
 		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
-	err := postgresDb.QueryRow(`SELECT EXISTS (
-	SELECT 1 FROM pg_catalog.pg_database WHERE datname = 'subscriptions'
-	);`).Scan(&result)
+	queryRow := fmt.Sprintf(`SELECT EXISTS (
+	SELECT 1 FROM pg_catalog.pg_database WHERE datname = '%s'
+	);`, dbName)
+
+	err := postgresDb.QueryRow(queryRow).Scan(&result)
 
 	if err != nil {
-		logger.Fatal("Error checking if db subscriptions exists", "fatal", err)
+		logger.Fatal(fmt.Sprintf("Error checking if db %s exists", dbName), "fatal", err)
 	}
 
 	return result
@@ -102,27 +106,6 @@ func ConnectToDatabaseSubscriptions(ctx context.Context, postgresDb *sql.DB) *sq
 	return db
 }
 
-func RemoveRecord(ctx context.Context, db *sql.DB, tableName string, id int) error {
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
-
-	query := fmt.Sprintf(`
-		DELETE FROM %s
-		WHERE id = $1;
-	`, tableName)
-
-	_, err := db.ExecContext(ctx, query, id)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to delete from %s", tableName), "error", err, "ID", id)
-	} else {
-		logger.Info(fmt.Sprintf("Deleted from %s", tableName), "ID", id)
-	}
-
-	return err
-}
-
 // func CheckRecord(db *sql.DB, tableName string, key int) bool {
 // 	logger, ok := ctx.Value("logger").(*logs.Logger)
 // 	if !ok {
@@ -151,6 +134,116 @@ func CheckTable(ctx context.Context, db *sql.DB, tableName string) (bool, error)
 	}
 
 	return exists, nil
+}
+
+func CreateTable(ctx context.Context, db *sql.DB, tableName string,
+	columns string, indexName string, indexColumn string) error {
+	logger, ok := ctx.Value("logger").(*logs.Logger)
+	if !ok {
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	}
+
+	// Create table query
+	createTableQuery := fmt.Sprintf(`
+		CREATE TABLE IF NOT EXISTS %s (
+			%s
+		);
+	`, tableName, columns)
+
+	_, err := db.ExecContext(ctx, createTableQuery)
+	if err != nil {
+		logger.Error("Failed to create table", "error", err)
+		return err
+	}
+
+	// Create index query if index info is provided
+	if indexName != "" && indexColumn != "" {
+		createIndexQuery := fmt.Sprintf(`CREATE INDEX IF NOT EXISTS %s ON %s (%s);`, indexName, tableName, indexColumn)
+		_, err = db.ExecContext(ctx, createIndexQuery)
+		if err != nil {
+			logger.Error(fmt.Sprintf("Failed to create index on %s", indexColumn), "error", err)
+			return err
+		}
+	}
+
+	logger.Info(fmt.Sprintf("Table '%s' and index '%s' created successfully", tableName, indexName))
+	return nil
+}
+
+func AddRecord(ctx context.Context, db *sql.DB, tableName string, columns []string, values []interface{}, conflictColumn string) error {
+	logger, ok := ctx.Value("logger").(*logs.Logger)
+	if !ok {
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	}
+
+	// Construct the column and value placeholders for the query
+	columnsStr := "(" + strings.Join(columns, ", ") + ")"
+	placeholders := "(" + strings.Repeat("$", len(values)-1) + "$" + fmt.Sprint(len(values)) + ")"
+
+	// Construct the full SQL query with ON CONFLICT clause
+	query := fmt.Sprintf(`
+		INSERT INTO %s %s
+		VALUES %s
+		ON CONFLICT (%s) DO NOTHING;
+	`, tableName, columnsStr, placeholders, conflictColumn)
+
+	// Execute the query with the provided values
+	_, err := db.ExecContext(ctx, query, values...)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to add record to %s", tableName), "error", err)
+		return err
+	}
+
+	logger.Info(fmt.Sprintf("Record added successfully to %s", tableName))
+	return nil
+}
+
+func GetRecord(ctx context.Context, db *sql.DB, tableName string,
+	idFieldName string, idValue int, dest interface{}) error {
+	logger, ok := ctx.Value("logger").(*logs.Logger)
+	if !ok {
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	}
+
+	query := fmt.Sprintf(`
+		SELECT * FROM %s WHERE %s = $1;
+	`, tableName, idFieldName)
+
+	// Execute the query and scan the result into the destination struct
+	err := db.QueryRowContext(ctx, query, idValue).Scan(dest)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			logger.Warn(fmt.Sprintf("No record found in %s with %s = %v",
+				tableName, idFieldName, idValue))
+			return nil
+		}
+		logger.Error(fmt.Sprintf("Failed to retrieve record from %s", tableName), "error", err, idFieldName, idValue)
+		return fmt.Errorf("failed to retrieve record from %s with %s = %v: %w", tableName, idFieldName, idValue, err)
+	}
+
+	logger.Info(fmt.Sprintf("Record from %s with %s = %v retrieved successfully", tableName, idFieldName, idValue))
+	return nil
+}
+
+func RemoveRecord(ctx context.Context, db *sql.DB, tableName string, id int) error {
+	logger, ok := ctx.Value("logger").(*logs.Logger)
+	if !ok {
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	}
+
+	query := fmt.Sprintf(`
+		DELETE FROM %s
+		WHERE id = $1;
+	`, tableName)
+
+	_, err := db.ExecContext(ctx, query, id)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to delete from %s", tableName), "error", err, "ID", id)
+	} else {
+		logger.Info(fmt.Sprintf("Deleted from %s", tableName), "ID", id)
+	}
+
+	return err
 }
 
 // DbExists checks if the specified database exists.
