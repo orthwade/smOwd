@@ -11,6 +11,7 @@ import (
 )
 
 type Anime struct {
+	ID            int
 	ShikiID       int
 	MalId         int
 	English       string
@@ -31,7 +32,8 @@ func CreateTable(ctx context.Context, db *sql.DB) error {
 
 	createTableQuery := `
 		CREATE TABLE animes (
-			shiki_id SERIAL PRIMARY KEY,
+			id SERIAL PRIMARY KEY,
+			shiki_id INT UNIQUE,
 			mal_id INT UNIQUE,
 			english TEXT,
 			japanese TEXT,
@@ -73,20 +75,21 @@ func Add(ctx context.Context, db *sql.DB, a Anime) error {
 	return nil
 }
 
-func Get(ctx context.Context, db *sql.DB, shikiID int) (*Anime, error) {
+func Get(ctx context.Context, db *sql.DB, id int) (*Anime, error) {
 	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
 	query := `
-		SELECT shiki_id, mal_id, english, japanese, episodes, episodes_aired
+		SELECT id, shiki_id, mal_id, english, japanese, episodes, episodes_aired
 		FROM animes
-		WHERE shiki_id = $1;
+		WHERE id = $1;
 	`
 
 	var a Anime
-	err := db.QueryRowContext(ctx, query, shikiID).Scan(
+	err := db.QueryRowContext(ctx, query, id).Scan(
+		&a.ID,
 		&a.ShikiID,
 		&a.MalId,
 		&a.English,
@@ -96,36 +99,17 @@ func Get(ctx context.Context, db *sql.DB, shikiID int) (*Anime, error) {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			logger.Warn(fmt.Sprintf("No anime found with ShikiID %d", shikiID))
+			logger.Warn(fmt.Sprintf("No anime found with ID %d", id))
 			return nil, nil
 		}
 		logger.Error("Failed to retrieve anime", "error", err)
 		return nil, err
 	}
 
-	logger.Info(fmt.Sprintf("Anime with ShikiID %d retrieved successfully", shikiID))
+	logger.Info(fmt.Sprintf("Anime with ID %d retrieved successfully", id))
 	return &a, nil
 }
 
-func Remove(ctx context.Context, db *sql.DB, shikiID int) error {
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
-
-	query := `
-		DELETE FROM animes
-		WHERE shiki_id = $1;
-	`
-
-	_, err := db.ExecContext(ctx, query, shikiID)
-
-	if err != nil {
-		logger.Error("Failed to delete anime", "error", err, "Shiki ID", shikiID)
-	} else {
-		logger.Info("Deleted anime", "Shiki ID", shikiID)
-	}
-
-	return err
+func Remove(ctx context.Context, db *sql.DB, id int) error {
+	return pql.RemoveRecord(ctx, db, "animes", id)
 }

@@ -1,4 +1,4 @@
-package telegram_bot
+package tgbot
 
 import (
 	"context"
@@ -574,7 +574,8 @@ func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 	}
 }
 
-func StartBotAndHandleUpdates(ctx context.Context, db *sql.DB) {
+func StartBotAndHandleUpdates(ctx context.Context, cancel context.CancelFunc,
+	db *sql.DB) {
 	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
 		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
@@ -582,8 +583,7 @@ func StartBotAndHandleUpdates(ctx context.Context, db *sql.DB) {
 
 	token := os.Getenv("TELEGRAM_TOKEN")
 	if token == "" {
-		logger.Error("TELEGRAM_BOT_TOKEN is not set")
-		panic("TELEGRAM_BOT_TOKEN is not set") // Panic instead of log.Fatal
+		logger.Fatal("TELEGRAM_BOT_TOKEN is not set")
 	}
 
 	bot, err := tgbotapi.NewBotAPI(token)
@@ -602,16 +602,10 @@ func StartBotAndHandleUpdates(ctx context.Context, db *sql.DB) {
 	// Get updates (messages and callback queries) from Telegram
 	updates, err := bot.GetUpdatesChan(u)
 	if err != nil {
-		logger.Error("Failed to get updates", "error", err)
-		panic("Failed to get updates") // Panic instead of log.Fatal
+		logger.Fatal("Failed to get updates", "error", err)
 	}
-
 	// Create a channel to synchronize processUsers with handleUpdate
 	processUsersChan := make(chan bool)
-
-	// Create a context and cancel function for graceful shutdown
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	// Set up a goroutine to listen for OS signals and trigger shutdown
 	go func() {

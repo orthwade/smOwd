@@ -11,6 +11,7 @@ import (
 )
 
 type User struct {
+	ID           int
 	TelegramID   int
 	FirstName    string
 	LastName     string
@@ -33,8 +34,9 @@ func CreateTable(ctx context.Context, db *sql.DB) error {
 	}
 
 	createTableQuery := fmt.Sprintf(`
-		CREATE TABLE %s (
-			telegram_id SERIAL PRIMARY KEY,
+		CREATE TABLE IF NOT EXISTS %s (
+			id SERIAL PRIMARY KEY,             -- Primary key with an index
+			telegram_id BIGINT UNIQUE NOT NULL, -- Unique index for telegram_id
 			first_name TEXT NOT NULL,
 			last_name TEXT,
 			user_name TEXT,
@@ -46,11 +48,19 @@ func CreateTable(ctx context.Context, db *sql.DB) error {
 
 	_, err := db.ExecContext(ctx, createTableQuery)
 	if err != nil {
-		logger.Fatal("Failed to create table", "table", tableName, "error", err)
+		logger.Error("Failed to create table", "error", err)
 		return err
 	}
 
-	logger.Info("Table created successfully", "table", tableName)
+	// Add index for telegram_id if needed
+	createIndexQuery := fmt.Sprintf(`CREATE INDEX IF NOT EXISTS idx_telegram_id ON %s (telegram_id);`, tableName)
+	_, err = db.ExecContext(ctx, createIndexQuery)
+	if err != nil {
+		logger.Error("Failed to create index on telegram_id", "error", err)
+		return err
+	}
+
+	logger.Info("Table and index created successfully", "table", tableName)
 	return nil
 }
 
@@ -84,13 +94,14 @@ func Get(ctx context.Context, db *sql.DB, telegramID int) (*User, error) {
 	}
 
 	query := `
-		SELECT telegram_id, first_name, last_name, user_name, language_code, is_bot
+		SELECT id, telegram_id, first_name, last_name, user_name, language_code, is_bot, enabled
 		FROM users
 		WHERE telegram_id = $1;
 	`
 
 	var u User
 	err := db.QueryRowContext(ctx, query, telegramID).Scan(
+		&u.ID, // Fetch the primary key
 		&u.TelegramID,
 		&u.FirstName,
 		&u.LastName,
@@ -101,36 +112,17 @@ func Get(ctx context.Context, db *sql.DB, telegramID int) (*User, error) {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			logger.Warn(fmt.Sprintf("No user found with TelegramID %d", telegramID))
-			return nil, nil
+			logger.Warn("No user found", "Telegram ID", telegramID)
+			return nil, nil // No rows found, return nil user
 		}
-		logger.Error("Failed to retrieve user", "error", err)
-		return nil, err
+		logger.Error("Failed to retrieve user", "error", err, "Telegram ID", telegramID)
+		return nil, fmt.Errorf("failed to retrieve user with TelegramID %d: %w", telegramID, err)
 	}
 
 	logger.Info(fmt.Sprintf("User with TelegramID %d retrieved successfully", telegramID))
 	return &u, nil
 }
 
-func Remove(ctx context.Context, db *sql.DB, telegramID int) error {
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
-
-	query := `
-		DELETE FROM users
-		WHERE telegram_id = $1;
-	`
-
-	_, err := db.ExecContext(ctx, query, telegramID)
-
-	if err != nil {
-		logger.Error("Failed to delete user", "error", err, "Telegram ID", telegramID)
-	} else {
-		logger.Info("Deleted user", "Telegram ID", telegramID)
-	}
-
-	return err
+func Remove(ctx context.Context, db *sql.DB, id int) error {
+	return pql.RemoveRecord(ctx, db, "users", id)
 }

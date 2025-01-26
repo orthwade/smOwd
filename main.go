@@ -8,11 +8,12 @@ import (
 	"os"
 	"smOwd/logs"
 
-	"smOwd/pql"
-	// "smOwd/telegram_bot"
 	"database/sql"
 	"smOwd/animes"
+	"smOwd/pql"
+	"smOwd/tgbot"
 	"smOwd/users"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -50,6 +51,23 @@ func CreateTableIfNotExistAndPrintInfo(ctx context.Context,
 	pql.PrintTableColumnsNamesAndTypes(ctx, db, tableName)
 }
 
+func simulateFatal(ctx context.Context) {
+	time.Sleep(2 * time.Second)
+
+	logger, ok := ctx.Value("logger").(*logs.Logger)
+
+	if !ok {
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	}
+
+	logger.Fatal("Sim Fatal")
+}
+
+func testGracefulShutdown(cancel context.CancelFunc) {
+	time.Sleep(1 + time.Second)
+	cancel()
+}
+
 func main() {
 	// Initialize logger
 	logger := logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
@@ -71,5 +89,7 @@ func main() {
 
 	CreateTableIfNotExistAndPrintInfo(ctx, db, "users", users.CreateTable)
 	CreateTableIfNotExistAndPrintInfo(ctx, db, "animes", animes.CreateTable)
+
+	tgbot.StartBotAndHandleUpdates(ctx, cancel, db)
 
 }

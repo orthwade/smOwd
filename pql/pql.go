@@ -102,6 +102,34 @@ func ConnectToDatabaseSubscriptions(ctx context.Context, postgresDb *sql.DB) *sq
 	return db
 }
 
+func RemoveRecord(ctx context.Context, db *sql.DB, tableName string, id int) error {
+	logger, ok := ctx.Value("logger").(*logs.Logger)
+	if !ok {
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	}
+
+	query := fmt.Sprintf(`
+		DELETE FROM %s
+		WHERE id = $1;
+	`, tableName)
+
+	_, err := db.ExecContext(ctx, query, id)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to delete from %s", tableName), "error", err, "ID", id)
+	} else {
+		logger.Info(fmt.Sprintf("Deleted from %s", tableName), "ID", id)
+	}
+
+	return err
+}
+
+// func CheckRecord(db *sql.DB, tableName string, key int) bool {
+// 	logger, ok := ctx.Value("logger").(*logs.Logger)
+// 	if !ok {
+// 		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+// 	}
+// }
+
 func CheckTable(ctx context.Context, db *sql.DB, tableName string) (bool, error) {
 	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
