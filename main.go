@@ -11,8 +11,9 @@ import (
 	"database/sql"
 	"smOwd/animes"
 	"smOwd/pql"
+	"smOwd/subscriptions"
 
-	// "smOwd/tgbot"
+	"smOwd/tgbot"
 	"smOwd/users"
 	"time"
 
@@ -90,7 +91,9 @@ func main() {
 
 	CreateTableIfNotExistAndPrintInfo(ctx, db, "users", users.CreateTable)
 	CreateTableIfNotExistAndPrintInfo(ctx, db, "animes", animes.CreateTable)
+	CreateTableIfNotExistAndPrintInfo(ctx, db, "subscriptions",
+		subscriptions.CreateTable)
 
-	// tgbot.StartBotAndHandleUpdates(ctx, cancel, db)
+	tgbot.StartBotAndHandleUpdates(ctx, cancel, db)
 
 }

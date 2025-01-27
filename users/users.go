@@ -55,6 +55,15 @@ func Get(ctx context.Context, db *sql.DB, id int) (*User, error) {
 	return &u, nil
 }
 
+func GetByTelegramID(ctx context.Context, db *sql.DB, telegramID int) (*User, error) {
+	var u User
+	err := pql.GetRecord(ctx, db, tableName, "telegram_id", telegramID, &u)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
 func Remove(ctx context.Context, db *sql.DB, id int) error {
 	return pql.RemoveRecord(ctx, db, tableName, id)
 }
