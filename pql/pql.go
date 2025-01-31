@@ -238,6 +238,37 @@ func AddRecord(ctx context.Context, db *sql.DB, tableName string, columns []stri
 	return nil
 }
 
+func FindRecord(ctx context.Context, db *sql.DB, tableName string,
+	idFieldName string, idValue int, dest interface{}) {
+	logger, ok := ctx.Value("logger").(*logs.Logger)
+	if !ok {
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	}
+
+	query := fmt.Sprintf(`
+		SELECT * FROM %s WHERE %s = $1;
+	`, tableName, idFieldName)
+
+	// Execute the query and scan the result into the destination struct
+	err := db.QueryRowContext(ctx, query, idValue).Scan(dest)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			logger.Warn(fmt.Sprintf("No record found in %s with %s = %v",
+				tableName, idFieldName, idValue))
+
+			dest = nil
+
+			return
+		}
+		logger.Error(fmt.Sprintf("Failed to retrieve record from %s",
+			tableName), "error", err, idFieldName, idValue)
+
+		return
+	}
+
+	logger.Info(fmt.Sprintf("Record from %s with %s = %v retrieved successfully", tableName, idFieldName, idValue))
+}
+
 func GetRecord(ctx context.Context, db *sql.DB, tableName string,
 	idFieldName string, idValue int, dest interface{}) error {
 	logger, ok := ctx.Value("logger").(*logs.Logger)

@@ -3,20 +3,14 @@ package tgbot
 import (
 	"context"
 	"database/sql"
-	"fmt"
-	"log"
 	"log/slog"
 	"os"
 	"os/signal"
-	"regexp"
 	"smOwd/logs"
-	"sort"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
-	"smOwd/misc"
 	"smOwd/pql"
 	"smOwd/search_anime"
 	"smOwd/users"
@@ -104,22 +98,6 @@ func GeneralMessage(msgStr string, keyboard tgbotapi.InlineKeyboardMarkup,
 	return msgStr, keyboard, msg
 }
 
-func ConvertUser(tgbotapiUser *tgbotapi.User) users.User {
-	var user users.User
-
-	b := tgbotapiUser
-
-	user.ID = -1
-	user.TelegramID = b.ID
-	user.FirstName = b.FirstName
-	user.LastName = b.LastName
-	user.UserName = b.UserName
-	user.LanguageCode = b.LanguageCode
-	user.IsBot = b.IsBot
-	user.Enabled = false
-
-	return user
-}
 
 // Unified function to handle both messages and inline button callbacks
 func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
@@ -131,32 +109,58 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
 
-	var user users.User
+	var user *users.User
+	var telegramID int
+	var tgbotUser *tgbotapi.User
 
-	var userTelegramID int
-	var userChatID int
-	var userMessageText string
+	// var userChatID int
+	// var userMessageText string
 
-	var msg tgbotapi.MessageConfig
-	var err error
+	// var msg tgbotapi.MessageConfig
+	// var err error
 	skip := true
 	if update.Message != nil {
-		user = ConvertUser(update.Message.From)
-		userChatID = update.Message.Chat.ID
-		userMessageText = misc.RemoveFirstCharIfPresent(update.Message.Text, '/')
+		tgbotUser = update.Message.From
+		telegramID = update.Message.From.ID
+		// userChatID = update.Message.Chat.ID
+		// userMessageText = misc.RemoveFirstCharIfPresent(update.Message.Text, '/')
 		skip = false
 
 	} else if update.CallbackQuery != nil { // Handle inline button callback queries
-		user = ConvertUser(update.CallbackQuery.From)
-		userChatID = update.CallbackQuery.Message.Chat.ID
-		userMessageText = update.CallbackQuery.Data
+		tgbotUser = update.Message.From
+		telegramID = update.CallbackQuery.From.ID
+		// userChatID = update.CallbackQuery.Message.Chat.ID
+		// userMessageText = update.CallbackQuery.Data
 		skip = false
 		defer bot.AnswerCallbackQuery(
 			tgbotapi.NewCallback(update.CallbackQuery.ID, "Done"))
 	}
 	if !skip {
-		users.Add(ctx, db, user)
-		user = users.GetByTelegramID(ctx, db, user)
+		user = users.FindByTelegramID(ctx, db, telegramID)
+
+		if user == nil {
+			logger.Info("New user", "tg_name", tgbotUser.UserName)
+			user = &users.User{
+				TelegramID:   tgbotUser.ID,
+				FirstName:    tgbotUser.FirstName,
+				LastName:     tgbotUser.LastName,
+				UserName:     tgbotUser.UserName,
+				LanguageCode: tgbotUser.LanguageCode,
+				IsBot:        tgbotUser.IsBot,
+				Enabled:      true, // Default to enabled, or adjust as needed
+			}
+			users.Add(ctx, db, user)
+
+			user = users.FindByTelegramID(ctx, db, telegramID)
+			
+			if user == nil {
+				logger.
+			}
+
+		} else {
+			logger.Info("Found user in db", "tg_name", tgbotUser.UserName)
+		}
+
 	}
 }
 

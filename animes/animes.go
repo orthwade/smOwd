@@ -3,6 +3,10 @@ package animes
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"log/slog"
+	"os"
+	"smOwd/logs"
 	"smOwd/pql"
 )
 
@@ -37,19 +41,76 @@ func CreateTable(ctx context.Context, db *sql.DB) error {
 	return pql.CreateTable(ctx, db, tableName, columns, indexName, indexColumn)
 }
 
-func Add(ctx context.Context, db *sql.DB, a Anime) error {
-	columns := []string{"shiki_id", "mal_id", "english", "japanese", "episodes", "episodes_aired"}
-	values := []interface{}{a.ShikiID, a.MalId, a.English, a.Japanese, a.Episodes, a.EpisodesAired}
-	return pql.AddRecord(ctx, db, tableName, columns, values, "shiki_id")
+func Add(ctx context.Context, db *sql.DB, a *Anime) error {
+	logger, ok := ctx.Value("logger").(*logs.Logger)
+	if !ok {
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	}
+
+	query := `
+		INSERT INTO animes (shiki_id, mal_id, english, japanese, episodes, episodes_aired)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (shiki_id) DO NOTHING;
+	`
+
+	_, err := db.ExecContext(ctx, query, a.ShikiID, a.MalId, a.English, a.Japanese, a.Episodes, a.EpisodesAired)
+	if err != nil {
+		logger.Error("Failed to add anime", "error", err, "anime", a)
+		return err
+	}
+
+	logger.Info(fmt.Sprintf("Anime with ShikiID %d added successfully", a.ShikiID))
+	return nil
 }
 
-func Get(ctx context.Context, db *sql.DB, id int) (*Anime, error) {
-	var a Anime
-	err := pql.GetRecord(ctx, db, tableName, "id", id, &a)
-	if err != nil {
-		return nil, err
+func Find(ctx context.Context, db *sql.DB, fieldName string, fieldValue int) *Anime {
+	logger, ok := ctx.Value("logger").(*logs.Logger)
+	if !ok {
+		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}
-	return &a, nil
+
+	query := fmt.Sprintf(`
+		SELECT id, shiki_id, mal_id, english, japanese, episodes, episodes_aired
+		FROM %s
+		WHERE %s = $1;
+	`, tableName, fieldName)
+
+	var anime Anime
+	err := db.QueryRowContext(ctx, query, fieldValue).Scan(
+		&anime.ID,
+		&anime.ShikiID,
+		&anime.MalId,
+		&anime.English,
+		&anime.Japanese,
+		&anime.Episodes,
+		&anime.EpisodesAired,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			logger.Warn("No anime found with", fieldName, fieldValue)
+			return nil // Return nil if the user is not found
+		}
+		logger.Error("Failed to retrieve anime", fieldName, fieldValue, "error", err)
+		return nil // Return nil if there's any other error
+	}
+
+	logger.Info(fmt.Sprintf("Anime with %s = %d retrieved successfully", fieldName, fieldValue))
+	return &anime
+}
+
+// FindByID queries the "animes" table by its primary key (id).
+func FindByID(ctx context.Context, db *sql.DB, id int) *Anime {
+	return Find(ctx, db, "id", id)
+}
+
+// FindByShikiID queries the "animes" table by ShikiID.
+func FindByShikiID(ctx context.Context, db *sql.DB, shikiID int) *Anime {
+	return Find(ctx, db, "shiki_id", shikiID)
+}
+
+// FindByMalID queries the "animes" table by MalID.
+func FindByMalID(ctx context.Context, db *sql.DB, malID int) *Anime {
+	return Find(ctx, db, "mal_id", malID)
 }
 
 func Remove(ctx context.Context, db *sql.DB, id int) error {
