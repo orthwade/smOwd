@@ -13,7 +13,7 @@ import (
 	"smOwd/pql"
 	"smOwd/subscriptions"
 
-	"smOwd/tgbot"
+	// "smOwd/tgbot"
 	"smOwd/users"
 	"time"
 
@@ -94,6 +94,14 @@ func main() {
 	CreateTableIfNotExistAndPrintInfo(ctx, db, "subscriptions",
 		subscriptions.CreateTable)
 
-	tgbot.StartBotAndHandleUpdates(ctx, cancel, db)
+	animes_, _ := animes.SearchAnimeByName(ctx, "frieren")
+
+	if len(animes_) == 0 {
+		logger.Warn("Found no amime")
+	} else {
+
+	}
+
+	// tgbot.StartBotAndHandleUpdates(ctx, cancel, db)
 
 }
