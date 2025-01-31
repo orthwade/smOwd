@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"smOwd/pql"
-	"smOwd/search_anime"
 	"smOwd/users"
 
 	"github.com/go-telegram-bot-api/telegram-bot-api"
@@ -98,7 +97,6 @@ func GeneralMessage(msgStr string, keyboard tgbotapi.InlineKeyboardMarkup,
 	return msgStr, keyboard, msg
 }
 
-
 // Unified function to handle both messages and inline button callbacks
 func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 	update tgbotapi.Update, db *sql.DB) {
@@ -152,9 +150,9 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 			users.Add(ctx, db, user)
 
 			user = users.FindByTelegramID(ctx, db, telegramID)
-			
+
 			if user == nil {
-				logger.
+				logger.Fatal("Fatal error processing user", "Telegram ID", telegramID)
 			}
 
 		} else {
@@ -233,27 +231,7 @@ func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 		if len(list) == 0 {
 			logger.Info("Used is not subscribed to any anime notifications.\n", "User ID", userID)
 		} else {
-			for _, id_and_last_episode := range list {
 
-				animeID := id_and_last_episode.AnimeID
-
-				anime, _ := search_anime.SearchAnimeById(ctx, int64(animeID))
-				animeName := anime.Data.Animes[0].English
-				storedAnimeLastEpisode := id_and_last_episode.LastEpisode
-				actualAnimeLastEpisode := anime.Data.Animes[0].EpisodesAired
-				animeStatus := anime.Data.Animes[0].Status
-				chatID := pql.GetChatID(ctx, db, userID)
-				if animeStatus == "released" {
-					SignalAnimeComplete(bot, chatID, animeName)
-					pql.RemoveAnimeIdAndLastEpisode(ctx, db, userID, animeID)
-				} else if actualAnimeLastEpisode > storedAnimeLastEpisode {
-					SignalAnimeNewEpisodes(bot, chatID, animeName, actualAnimeLastEpisode)
-					pql.UpdateAnimeIdAndLastEpisode(ctx, db, userID, animeID, actualAnimeLastEpisode)
-				} else {
-					logger.Info("Nothing new for User", "User ID", userID)
-				}
-				// TestSignalUpdate(bot, chatID)
-			}
 		}
 
 		// You can add your custom processing logic here

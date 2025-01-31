@@ -13,13 +13,13 @@ import (
 const tableName = "animes"
 
 type Anime struct {
-	ID            int //PRIMARY KEY
-	ShikiID       int
-	MalId         int
-	English       string
-	Japanese      string
-	Episodes      int
-	EpisodesAired int
+	ID            int    `json:"-"`             // Local primary key (not part of API response)
+	ShikiID       int    `json:"id"`            // Shikimori ID
+	MalId         int    `json:"malId"`         // MAL ID (if needed, map manually if not in response)
+	English       string `json:"english"`       // English title
+	Japanese      string `json:"japanese"`      // Japanese title
+	Episodes      int    `json:"episodes"`      // Total episodes
+	EpisodesAired int    `json:"episodesAired"` // Episodes aired
 }
 
 func CheckTable(ctx context.Context, db *sql.DB) (bool, error) {
