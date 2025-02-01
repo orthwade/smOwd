@@ -23,11 +23,7 @@ func ConnectToDB(connStr string) (*sql.DB, error) {
 }
 
 func ConnectToDatabasePostgres(ctx context.Context) *sql.DB {
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
+	logger := logs.DefaultFromCtx(ctx)
 
 	dbHost := os.Getenv("DB_HOST")
 	dbPort := os.Getenv("DB_PORT")
@@ -53,11 +49,7 @@ func CheckIfDatabaseSubscriptionsExists(ctx context.Context, postgresDb *sql.DB)
 	var result bool
 	dbName := os.Getenv("DB_NAME")
 
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
+	logger := logs.DefaultFromCtx(ctx)
 
 	queryRow := fmt.Sprintf(`SELECT EXISTS (
 	SELECT 1 FROM pg_catalog.pg_database WHERE datname = '%s'
@@ -73,12 +65,7 @@ func CheckIfDatabaseSubscriptionsExists(ctx context.Context, postgresDb *sql.DB)
 }
 
 func ConnectToDatabaseSubscriptions(ctx context.Context, postgresDb *sql.DB) *sql.DB {
-	// Get the logger from the context
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
+	logger := logs.DefaultFromCtx(ctx)
 
 	if !CheckIfDatabaseSubscriptionsExists(ctx, postgresDb) {
 		logger.Fatal("Database subscriptions doesn't exists")
@@ -114,10 +101,7 @@ func ConnectToDatabaseSubscriptions(ctx context.Context, postgresDb *sql.DB) *sq
 // }
 
 func CheckTable(ctx context.Context, db *sql.DB, tableName string) (bool, error) {
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
+	logger := logs.DefaultFromCtx(ctx)
 
 	query := `
 		SELECT EXISTS (
@@ -138,10 +122,7 @@ func CheckTable(ctx context.Context, db *sql.DB, tableName string) (bool, error)
 
 func CreateTable(ctx context.Context, db *sql.DB, tableName string,
 	columns string, indexName string, indexColumn string) error {
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
+	logger := logs.DefaultFromCtx(ctx)
 
 	// Create table query
 	createTableQuery := fmt.Sprintf(`
@@ -173,10 +154,8 @@ func CreateTable(ctx context.Context, db *sql.DB, tableName string,
 func PrintTableColumnsNamesAndTypes(
 	ctx context.Context, db *sql.DB, tableName string) {
 
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
+	logger := logs.DefaultFromCtx(ctx)
+
 	// Query to get table structure
 	query := `
 		SELECT column_name, data_type, is_nullable
@@ -211,10 +190,7 @@ func PrintTableColumnsNamesAndTypes(
 }
 
 func AddRecord(ctx context.Context, db *sql.DB, tableName string, columns []string, values []interface{}, conflictColumn string) error {
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
+	logger := logs.DefaultFromCtx(ctx)
 
 	// Construct the column and value placeholders for the query
 	columnsStr := "(" + strings.Join(columns, ", ") + ")"
@@ -240,10 +216,7 @@ func AddRecord(ctx context.Context, db *sql.DB, tableName string, columns []stri
 
 func FindRecord(ctx context.Context, db *sql.DB, tableName string,
 	idFieldName string, idValue int, dest interface{}) {
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
+	logger := logs.DefaultFromCtx(ctx)
 
 	query := fmt.Sprintf(`
 		SELECT * FROM %s WHERE %s = $1;
@@ -271,10 +244,7 @@ func FindRecord(ctx context.Context, db *sql.DB, tableName string,
 
 func GetRecord(ctx context.Context, db *sql.DB, tableName string,
 	idFieldName string, idValue int, dest interface{}) error {
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
+	logger := logs.DefaultFromCtx(ctx)
 
 	query := fmt.Sprintf(`
 		SELECT * FROM %s WHERE %s = $1;
@@ -297,10 +267,7 @@ func GetRecord(ctx context.Context, db *sql.DB, tableName string,
 }
 
 func RemoveRecord(ctx context.Context, db *sql.DB, tableName string, id int) error {
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
+	logger := logs.DefaultFromCtx(ctx)
 
 	query := fmt.Sprintf(`
 		DELETE FROM %s
@@ -402,12 +369,7 @@ func UserExists(ctx context.Context, db *sql.DB, userID int64) bool {
 }
 
 func SetEnabled(ctx context.Context, db *sql.DB, userID int64, newEnabledStatus bool) {
-	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-	if !ok {
-		// If the logger is not found in the context, fall back to a default logger
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
+	logger := logs.DefaultFromCtx(ctx)
 
 	// Update the user's enabled status
 	_, err := db.Exec(`
@@ -429,12 +391,7 @@ func SetEnabled(ctx context.Context, db *sql.DB, userID int64, newEnabledStatus 
 }
 
 func SetChatID(ctx context.Context, db *sql.DB, userID int64, chatID int64) {
-	// Get the logger from the context, or use a default logger if not available
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-	if !ok {
-		// If the logger is not found in the context, fall back to a default logger
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
+	logger := logs.DefaultFromCtx(ctx)
 
 	// Update the user's chat ID
 	_, err := db.Exec(`

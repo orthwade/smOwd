@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
-	"os"
 	"smOwd/logs"
 	"smOwd/pql"
 )
@@ -45,10 +43,7 @@ func CreateTable(ctx context.Context, db *sql.DB) error {
 }
 
 func Add(ctx context.Context, db *sql.DB, u *User) error {
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
+	logger := logs.DefaultFromCtx(ctx)
 
 	query := `
 		INSERT INTO users (telegram_id, first_name, last_name, user_name, language_code, is_bot, enabled)
@@ -67,10 +62,7 @@ func Add(ctx context.Context, db *sql.DB, u *User) error {
 }
 
 func Find(ctx context.Context, db *sql.DB, fieldName string, fieldValue int) *User {
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
+	logger := logs.DefaultFromCtx(ctx)
 
 	query := fmt.Sprintf(`
 		SELECT id, telegram_id, first_name, last_name, user_name, language_code, is_bot, enabled

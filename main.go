@@ -21,10 +21,7 @@ import (
 )
 
 func LoadEnv(ctx context.Context) {
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
+	logger := logs.DefaultFromCtx(ctx)
 	if err := godotenv.Load(); err != nil {
 		logger.Fatal("Error loading .env file", "error", err)
 	} else {
@@ -56,11 +53,7 @@ func CreateTableIfNotExistAndPrintInfo(ctx context.Context,
 func simulateFatal(ctx context.Context) {
 	time.Sleep(2 * time.Second)
 
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
+	logger := logs.DefaultFromCtx(ctx)
 
 	logger.Fatal("Sim Fatal")
 }

@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
-	"os"
 
 	// "smOwd/animes"
 	"smOwd/logs"
@@ -27,11 +25,7 @@ func CheckTable(ctx context.Context, db *sql.DB) (bool, error) {
 }
 
 func CreateTable(ctx context.Context, db *sql.DB) error {
-	// Initialize logger
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
+	logger := logs.DefaultFromCtx(ctx)
 
 	// SQL query to create the subscriptions table
 	query := fmt.Sprintf(`
@@ -73,11 +67,7 @@ func CreateTable(ctx context.Context, db *sql.DB) error {
 }
 
 func Add(ctx context.Context, db *sql.DB, s Subscription) error {
-	// Fetch logger from context, if it doesn't exist, create a new one
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
+	logger := logs.DefaultFromCtx(ctx)
 
 	// Define the SQL query to insert a new subscription record
 	query := `
