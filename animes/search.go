@@ -31,6 +31,7 @@ type AnimeResponse struct {
 			MalId         string `json:"malId"`
 			English       string `json:"english"`
 			Japanese      string `json:"japanese"`
+			Status        string `json:"status"`
 			Episodes      int    `json:"episodes"`
 			EpisodesAired int    `json:"episodesAired"`
 		} `json:"animes"`
@@ -48,6 +49,7 @@ func SearchAnimeByName(ctx context.Context, name string) ([]Anime, error) {
 			malId    
 			english   
 			japanese 
+			status
 			episodes 
 			episodesAired
 		}

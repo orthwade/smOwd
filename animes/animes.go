@@ -13,13 +13,14 @@ import (
 const tableName = "animes"
 
 type Anime struct {
-	ID            int    `json:"-"`             // Local primary key (not part of API response)
-	ShikiID       int    `json:"id"`            // Shikimori ID
-	MalID         int    `json:"malId"`         // MAL ID (if needed, map manually if not in response)
-	English       string `json:"english"`       // English title
-	Japanese      string `json:"japanese"`      // Japanese title
-	Episodes      int    `json:"episodes"`      // Total episodes
-	EpisodesAired int    `json:"episodesAired"` // Episodes aired
+	ID            int
+	ShikiID       int
+	MalID         int
+	English       string
+	Japanese      string
+	Status        string
+	Episodes      int
+	EpisodesAired int
 }
 
 func CheckTable(ctx context.Context, db *sql.DB) (bool, error) {
@@ -30,9 +31,10 @@ func CreateTable(ctx context.Context, db *sql.DB) error {
 	columns := `
 		id SERIAL PRIMARY KEY,
 		shiki_id BIGINT UNIQUE NOT NULL,
-		mal_id INT UNIQUE,
+		mal_id BIGINT UNIQUE,
 		english TEXT,
 		japanese TEXT,
+		status TEXT,
 		episodes INT NOT NULL,
 		episodes_aired INT NOT NULL
 	`
@@ -48,12 +50,14 @@ func Add(ctx context.Context, db *sql.DB, a *Anime) error {
 	}
 
 	query := `
-		INSERT INTO animes (shiki_id, mal_id, english, japanese, episodes, episodes_aired)
+		INSERT INTO animes (shiki_id, mal_id, english, japanese, status, episodes, episodes_aired)
 		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (shiki_id) DO NOTHING;
 	`
 
-	_, err := db.ExecContext(ctx, query, a.ShikiID, a.MalID, a.English, a.Japanese, a.Episodes, a.EpisodesAired)
+	_, err := db.ExecContext(ctx, query, a.ShikiID, a.MalID, a.English,
+		a.Japanese, a.Status, a.Episodes, a.EpisodesAired)
+
 	if err != nil {
 		logger.Error("Failed to add anime", "error", err, "anime", a)
 		return err
@@ -70,7 +74,7 @@ func Find(ctx context.Context, db *sql.DB, fieldName string, fieldValue int) *An
 	}
 
 	query := fmt.Sprintf(`
-		SELECT id, shiki_id, mal_id, english, japanese, episodes, episodes_aired
+		SELECT id, shiki_id, mal_id, english, japanese, status, episodes, episodes_aired
 		FROM %s
 		WHERE %s = $1;
 	`, tableName, fieldName)
@@ -82,6 +86,7 @@ func Find(ctx context.Context, db *sql.DB, fieldName string, fieldValue int) *An
 		&anime.MalID,
 		&anime.English,
 		&anime.Japanese,
+		&anime.Status,
 		&anime.Episodes,
 		&anime.EpisodesAired,
 	)
