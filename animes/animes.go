@@ -15,7 +15,7 @@ const tableName = "animes"
 type Anime struct {
 	ID            int    `json:"-"`             // Local primary key (not part of API response)
 	ShikiID       int    `json:"id"`            // Shikimori ID
-	MalId         int    `json:"malId"`         // MAL ID (if needed, map manually if not in response)
+	MalID         int    `json:"malId"`         // MAL ID (if needed, map manually if not in response)
 	English       string `json:"english"`       // English title
 	Japanese      string `json:"japanese"`      // Japanese title
 	Episodes      int    `json:"episodes"`      // Total episodes
@@ -53,7 +53,7 @@ func Add(ctx context.Context, db *sql.DB, a *Anime) error {
 		ON CONFLICT (shiki_id) DO NOTHING;
 	`
 
-	_, err := db.ExecContext(ctx, query, a.ShikiID, a.MalId, a.English, a.Japanese, a.Episodes, a.EpisodesAired)
+	_, err := db.ExecContext(ctx, query, a.ShikiID, a.MalID, a.English, a.Japanese, a.Episodes, a.EpisodesAired)
 	if err != nil {
 		logger.Error("Failed to add anime", "error", err, "anime", a)
 		return err
@@ -79,7 +79,7 @@ func Find(ctx context.Context, db *sql.DB, fieldName string, fieldValue int) *An
 	err := db.QueryRowContext(ctx, query, fieldValue).Scan(
 		&anime.ID,
 		&anime.ShikiID,
-		&anime.MalId,
+		&anime.MalID,
 		&anime.English,
 		&anime.Japanese,
 		&anime.Episodes,

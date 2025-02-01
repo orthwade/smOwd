@@ -94,13 +94,15 @@ func main() {
 	CreateTableIfNotExistAndPrintInfo(ctx, db, "subscriptions",
 		subscriptions.CreateTable)
 
-	animes_, _ := animes.SearchAnimeByName(ctx, "frieren")
+	// animes.TestConnection(ctx)
 
-	if len(animes_) == 0 {
-		logger.Warn("Found no amime")
-	} else {
+	sliceAnime, _ := animes.SearchAnimeByName(ctx, "frieren")
 
+	for _, anime := range sliceAnime {
+		logger.Info(anime.English)
 	}
+
+	// animes_, _ := animes.SearchAnimeByName(ctx, "frieren")
 
 	// tgbot.StartBotAndHandleUpdates(ctx, cancel, db)
 

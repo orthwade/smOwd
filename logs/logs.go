@@ -2,6 +2,7 @@
 package logs
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -30,4 +31,13 @@ func (l *Logger) Fatal(msg string, args ...interface{}) {
 	// Optionally, wait for the signal handler to run (for graceful shutdown)
 	<-sigTerm
 	os.Exit(1)
+}
+
+func DefaultFromCtx(ctx context.Context) *Logger {
+	logger, ok := ctx.Value("logger").(*Logger)
+	if !ok {
+		logger = New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	}
+
+	return logger
 }

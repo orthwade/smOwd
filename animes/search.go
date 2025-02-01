@@ -3,143 +3,119 @@ package animes
 import (
 	"bytes"
 	"context"
+
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log/slog"
+
+	// "log/slog"
 	"net/http"
-	"os"
+	// "os"
 	"smOwd/logs"
+	"strconv"
+	"time"
 )
 
-// GraphQLRequest defines the structure for the GraphQL request body.
+const url = "https://shikimori.one/api/graphql"
+
 type GraphQLRequest struct {
 	Query string `json:"query"`
 }
 
-// GraphQLResponse represents the response structure from Shikimori's API.
-type GraphQLResponse struct {
+var client = &http.Client{Timeout: 10 * time.Second}
+
+type AnimeResponse struct {
 	Data struct {
-		Animes []Anime `json:"animes"`
+		Animes []struct {
+			ShikiID       string `json:"id"`
+			MalId         string `json:"malId"`
+			English       string `json:"english"`
+			Japanese      string `json:"japanese"`
+			Episodes      int    `json:"episodes"`
+			EpisodesAired int    `json:"episodesAired"`
+		} `json:"animes"`
 	} `json:"data"`
 }
 
-// SearchAnimeByID queries the Shikimori API by anime ID.
-func SearchAnimeByID(ctx context.Context, shikiID int) (*Anime, error) {
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
-	// Build GraphQL query
-	query := fmt.Sprintf(`
-		query {
-			animes(ids: "%d") { 
-				id
-				malId
-				english
-				japanese
-				episodes
-				episodesAired
-			}
-		}
-	`, shikiID)
-
-	// Execute the query
-	response, err := executeQuery(ctx, query, logger)
-	if err != nil {
-		return nil, err
-	}
-
-	// Handle the response
-	if len(response.Data.Animes) == 0 {
-		logger.Warn("No anime found", "ShikiID", shikiID)
-		return nil, nil // No anime found
-	}
-
-	anime := response.Data.Animes[0] // Assume the first result is the most relevant
-	logger.Info("Anime found", "ShikiID", anime.ShikiID, "English", anime.English)
-	return &anime, nil
-}
-
-// SearchAnimeByName queries the Shikimori API by anime name.
 func SearchAnimeByName(ctx context.Context, name string) ([]Anime, error) {
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-	if !ok {
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
+	var sliceAnime []Anime
 
-	// Build GraphQL query
-	query := fmt.Sprintf(`
-		query {
-			animes(search: "%s", limit: 10) { 
-				id
-				malId
-				english
-				japanese
-				episodes
-				episodesAired
-			}
+	logger := logs.DefaultFromCtx(ctx)
+
+	query := fmt.Sprintf(` query{
+		animes(search: "%s", limit: 50) {
+			id       
+			malId    
+			english   
+			japanese 
+			episodes 
+			episodesAired
 		}
-	`, name)
+	}`, name)
 
-	// Execute the query
-	response, err := executeQuery(ctx, query, logger)
+	reqBody := GraphQLRequest{Query: query}
+
+	reqBodyJson, err := json.Marshal(reqBody)
+
 	if err != nil {
+		logger.Error("Failed to marshall query", "error", err)
 		return nil, err
 	}
 
-	// Handle the response
-	if len(response.Data.Animes) == 0 {
-		logger.Warn("No anime found", "Name", name)
-		return nil, nil // No anime found
-	}
+	req, err := http.NewRequestWithContext(ctx, "POST", url,
+		bytes.NewBuffer(reqBodyJson))
 
-	logger.Info("Animes retrieved", "Count", len(response.Data.Animes))
-	return response.Data.Animes, nil
-}
-
-// Helper: Executes a GraphQL query and parses the response.
-func executeQuery(ctx context.Context, query string, logger *logs.Logger) (*GraphQLResponse, error) {
-	// Prepare request body
-	reqBody := GraphQLRequest{
-		Query: query,
-	}
-	reqBodyJSON, err := json.Marshal(reqBody)
-	if err != nil {
-		logger.Error("Failed to marshal request body", "error", err)
-		return nil, err
-	}
-
-	// Send HTTP request
-	url := "https://shikimori.one/api/graphql"
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(reqBodyJSON))
-	if err != nil {
-		logger.Error("Failed to create HTTP request", "error", err)
-		return nil, err
-	}
 	req.Header.Set("Content-Type", "application/json")
 
-	// Execute request
-	client := &http.Client{} // Reusable HTTP client instance
-	resp, err := client.Do(req)
 	if err != nil {
-		logger.Error("HTTP request failed", "error", err)
-		return nil, err
+		logger.Fatal("Failed to create requet", "error", err)
 	}
+
+	resp, err := client.Do(req)
 	defer resp.Body.Close()
 
-	// Read and parse response
-	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		logger.Error("Failed to read response body", "error", err)
-		return nil, err
+		logger.Fatal("Failed request", "error", err)
 	}
 
-	var gqlResp GraphQLResponse
-	if err := json.Unmarshal(respBody, &gqlResp); err != nil {
-		logger.Error("Failed to unmarshal response", "error", err)
-		return nil, err
+	respBody, err := ioutil.ReadAll(resp.Body)
+
+	if err != nil {
+		logger.Fatal("Failed to read response", "error", err)
 	}
 
-	return &gqlResp, nil
+	var animeResponse AnimeResponse
+
+	err = json.Unmarshal(respBody, &animeResponse)
+
+	if err != nil {
+		logger.Fatal("Failed to unmarshall", "error", err)
+	}
+	for _, anime := range animeResponse.Data.Animes {
+
+		shikiIdInt, err := strconv.Atoi(anime.ShikiID)
+
+		if err != nil {
+			logger.Error("Failed to convert shiki ID to integer", "error", err)
+			return nil, err
+		}
+
+		malIdInt, err := strconv.Atoi(anime.MalId)
+
+		if err != nil {
+			logger.Error("Failed to convert Mal ID to integer", "error", err)
+			return nil, err
+		}
+
+		sliceAnime = append(sliceAnime, Anime{
+			ID:            -1,
+			ShikiID:       shikiIdInt,
+			MalID:         malIdInt,
+			English:       anime.English,
+			Japanese:      anime.Japanese,
+			Episodes:      anime.Episodes,
+			EpisodesAired: anime.EpisodesAired})
+	}
+
+	return sliceAnime, nil
 }
