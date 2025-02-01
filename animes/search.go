@@ -115,6 +115,7 @@ func SearchAnimeByName(ctx context.Context, name string) ([]Anime, error) {
 			MalID:         malIdInt,
 			English:       anime.English,
 			Japanese:      anime.Japanese,
+			Status:        anime.Status,
 			Episodes:      anime.Episodes,
 			EpisodesAired: anime.EpisodesAired})
 	}
