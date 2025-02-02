@@ -30,11 +30,28 @@ func (c HandleUpdateMode) String() string {
 	return [...]string{"Basic", "Search"}[c]
 }
 
-var usersMapHandleUpdMode = make(map[int64]HandleUpdateMode)
+type sessionData struct {
+	HandleUpdateMode
+}
 
-var usersMapLastAnimeIDList = make(map[int64][]int64)
-var usersMapLastAnimeNameList = make(map[int64][]string)
-var usersMapLastAnimeLastEpisodeList = make(map[int64][]int)
+type userHandle struct {
+	SessionData sessionData
+}
+
+var mapIdUserHandle = make(map[int]userHandle)
+
+func checkAndAddUserToMap(ctx context.Context, userID int) {
+	logger := logs.DefaultFromCtx(ctx)
+
+	_, exists := mapIdUserHandle[user.ID]
+
+	if !exists {
+		logger.Info("Adding user handle to map", "ID", user.ID, "Telegram username", user.UserName)
+		sessionDataObj := sessionData{HandleUpdateMode: HandleUpdateModeBasic}
+		userHandleObj := userHandle{SessionData: sessionDataObj}
+		mapIdUserHandle[user.ID] = userHandleObj
+	}
+}
 
 func CreateInlineKeyboard(listText []string,
 	maxCols int) tgbotapi.InlineKeyboardMarkup {
