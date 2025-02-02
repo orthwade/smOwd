@@ -13,6 +13,7 @@ const tableName = "users"
 type User struct {
 	ID           int //PRIMARY KEY
 	TelegramID   int
+	ChatID       int
 	FirstName    string
 	LastName     string
 	UserName     string
@@ -30,6 +31,7 @@ func CreateTable(ctx context.Context, db *sql.DB) error {
 	columns := `
 		id SERIAL PRIMARY KEY,
 		telegram_id BIGINT UNIQUE NOT NULL,
+		chat_id BIGINT UNIQUE NOT NULL,
 		first_name TEXT NOT NULL,
 		last_name TEXT,
 		user_name TEXT,
@@ -46,12 +48,12 @@ func Add(ctx context.Context, db *sql.DB, u *User) error {
 	logger := logs.DefaultFromCtx(ctx)
 
 	query := `
-		INSERT INTO users (telegram_id, first_name, last_name, user_name, language_code, is_bot, enabled)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO users (telegram_id, chat_id, first_name, last_name, user_name, language_code, is_bot, enabled)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (telegram_id) DO NOTHING;
 	`
 
-	_, err := db.ExecContext(ctx, query, u.TelegramID, u.FirstName, u.LastName, u.UserName, u.LanguageCode, u.IsBot, u.Enabled)
+	_, err := db.ExecContext(ctx, query, u.TelegramID, u.ChatID, u.FirstName, u.LastName, u.UserName, u.LanguageCode, u.IsBot, u.Enabled)
 	if err != nil {
 		logger.Error("Failed to add record to users", "error", err)
 		return err
@@ -65,7 +67,7 @@ func Find(ctx context.Context, db *sql.DB, fieldName string, fieldValue int) *Us
 	logger := logs.DefaultFromCtx(ctx)
 
 	query := fmt.Sprintf(`
-		SELECT id, telegram_id, first_name, last_name, user_name, language_code, is_bot, enabled
+		SELECT id, telegram_id, chat_id, first_name, last_name, user_name, language_code, is_bot, enabled
 		FROM %s
 		WHERE %s = $1;
 	`, tableName, fieldName)
@@ -74,6 +76,7 @@ func Find(ctx context.Context, db *sql.DB, fieldName string, fieldValue int) *Us
 	err := db.QueryRowContext(ctx, query, fieldValue).Scan(
 		&user.ID,
 		&user.TelegramID,
+		&user.ChatID,
 		&user.FirstName,
 		&user.LastName,
 		&user.UserName,

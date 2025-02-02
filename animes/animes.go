@@ -46,7 +46,7 @@ func Add(ctx context.Context, db *sql.DB, a *Anime) error {
 
 	query := `
 		INSERT INTO animes (shiki_id, mal_id, english, japanese, status, episodes, episodes_aired)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (shiki_id) DO NOTHING;
 	`
 

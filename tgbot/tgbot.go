@@ -109,6 +109,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 
 	var user *users.User
 	var telegramID int
+	var chatID int
 	var tgbotUser *tgbotapi.User
 
 	// var userChatID int
@@ -120,14 +121,14 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 	if update.Message != nil {
 		tgbotUser = update.Message.From
 		telegramID = update.Message.From.ID
-		// userChatID = update.Message.Chat.ID
+		chatID = update.Message.Chat.ID
 		// userMessageText = misc.RemoveFirstCharIfPresent(update.Message.Text, '/')
 		skip = false
 
 	} else if update.CallbackQuery != nil { // Handle inline button callback queries
 		tgbotUser = update.Message.From
 		telegramID = update.CallbackQuery.From.ID
-		// userChatID = update.CallbackQuery.Message.Chat.ID
+		chatID = update.CallbackQuery.Message.Chat.ID
 		// userMessageText = update.CallbackQuery.Data
 		skip = false
 		defer bot.AnswerCallbackQuery(
@@ -140,6 +141,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 			logger.Info("New user", "tg_name", tgbotUser.UserName)
 			user = &users.User{
 				TelegramID:   tgbotUser.ID,
+				ChatID:       chatID,
 				FirstName:    tgbotUser.FirstName,
 				LastName:     tgbotUser.LastName,
 				UserName:     tgbotUser.UserName,
@@ -162,85 +164,8 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 	}
 }
 
-func SignalAnimeComplete(bot *tgbotapi.BotAPI, chatID int64, animeName string) {
-	var msgStr string
-	var keyboard tgbotapi.InlineKeyboardMarkup
-	var msg tgbotapi.MessageConfig
-
-	msg = tgbotapi.NewMessage(chatID, "")
-	msgStr = animeName + " is Complete!\nSubscription will be removed.\n"
-	msgStr, keyboard, msg = GeneralMessage(msgStr, keyboard, msg)
-
-	msg.Text = msgStr
-	bot.Send(msg)
-}
-
-func SignalAnimeNewEpisodes(bot *tgbotapi.BotAPI, chatID int64, animeName string, newEpisode int) {
-	var msgStr string
-	var keyboard tgbotapi.InlineKeyboardMarkup
-	var msg tgbotapi.MessageConfig
-
-	msg = tgbotapi.NewMessage(chatID, "")
-	msgStr = animeName + " episode " + strconv.Itoa(newEpisode) + " is released!\n"
-	msgStr, keyboard, msg = GeneralMessage(msgStr, keyboard, msg)
-
-	msg.Text = msgStr
-	bot.Send(msg)
-}
-
-func TestSignalUpdate(bot *tgbotapi.BotAPI, chatID int64) {
-	animeName := "TestAnimeName"
-	newEpisode := 777
-	SignalAnimeComplete(bot, chatID, animeName)
-	SignalAnimeNewEpisodes(bot, chatID, animeName, newEpisode)
-}
-
 func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
-	// Query all users from the users table
-	logger, ok := ctx.Value("logger").(*logs.Logger)
-	if !ok {
-		// If the logger is not found in the context, fall back to a default logger
-		logger = logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	}
-	rows, err := db.Query("SELECT id, enabled FROM users")
-	if err != nil {
-		logger.Error("Failed to query users", "error", err)
-	}
-	defer rows.Close()
 
-	// Process each user
-	for rows.Next() {
-		var userID int64
-		var enabled bool
-		if err := rows.Scan(&userID, &enabled); err != nil {
-			logger.Error("Failed to scan row", "error", err)
-		}
-		if !enabled {
-			return
-		}
-
-		// Example processing: Print the user ID and their enabled status
-
-		logger.Info("Processing User ", "User ID", userID)
-
-		list, err := pql.GetSliceAnimeIdAndLastEpisode(ctx, db, userID)
-		if err != nil {
-			logger.Error("Error reading subscription for user", "User ID", userID, "error", err)
-		}
-
-		if len(list) == 0 {
-			logger.Info("Used is not subscribed to any anime notifications.\n", "User ID", userID)
-		} else {
-
-		}
-
-		// You can add your custom processing logic here
-	}
-
-	// Check for errors in the row iteration
-	if err := rows.Err(); err != nil {
-		logger.Error("Error reading rows", "error", err)
-	}
 }
 
 func StartBotAndHandleUpdates(ctx context.Context, cancel context.CancelFunc,
