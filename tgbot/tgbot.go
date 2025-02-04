@@ -142,21 +142,21 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 	var chatID int
 	var tgbotUser *tgbotapi.User
 
-	// var messageText string
+	var messageText string
 
 	skip := true
 	if update.Message != nil {
 		tgbotUser = update.Message.From
 		telegramID = update.Message.From.ID
 		chatID = int(update.Message.Chat.ID)
-		// messageText = misc.RemoveFirstCharIfPresent(update.Message.Text, '/')
+		messageText = misc.RemoveFirstCharIfPresent(update.Message.Text, '/')
 		skip = false
 
 	} else if update.CallbackQuery != nil { // Handle inline button callback queries
 		tgbotUser = update.Message.From
 		telegramID = update.CallbackQuery.From.ID
 		chatID = int(update.CallbackQuery.Message.Chat.ID)
-		// messageText = update.CallbackQuery.Data
+		messageText = update.CallbackQuery.Data
 		skip = false
 		defer bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, "Done"))
 	}
@@ -204,6 +204,8 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 		*updateMode = handleUpdateModeBasic
 	} else if *updateMode == handleUpdateModeBasic {
 		logger.Info("Update handle mode Basic", "tgname", user.UserName)
+		
+		if messageText == "Enable"
 	}
 }
 

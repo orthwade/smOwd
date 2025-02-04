@@ -281,3 +281,16 @@ func RemoveRecord(ctx context.Context, db *sql.DB, tableName string, id int) err
 
 	return err
 }
+
+func SetIntFieldByIntKey(ctx context.Context, db *sql.DB, tableName string, keyName string,
+	keyValue int, fieldName string, fieldValue int) {
+
+	logger := logs.DefaultFromCtx(ctx)
+
+	query := fmt.Sprintf(`
+	UPDATE %s
+	SET $2 = $3
+	WHERE $4 = $5;
+	`, tableName, fieldName, value, keyName, keyValue)
+
+}

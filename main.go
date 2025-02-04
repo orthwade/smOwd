@@ -64,7 +64,7 @@ func testGracefulShutdown(cancel context.CancelFunc) {
 }
 
 func main() {
-	return
+	// return
 	// Initialize logger
 	logger := logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 
