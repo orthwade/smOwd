@@ -13,7 +13,7 @@ import (
 	"smOwd/pql"
 	"smOwd/subscriptions"
 
-	// "smOwd/tgbot"
+	"smOwd/tgbot"
 	"smOwd/users"
 	"time"
 
@@ -64,6 +64,7 @@ func testGracefulShutdown(cancel context.CancelFunc) {
 }
 
 func main() {
+	return
 	// Initialize logger
 	logger := logs.New(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 
@@ -87,16 +88,8 @@ func main() {
 	CreateTableIfNotExistAndPrintInfo(ctx, db, "subscriptions",
 		subscriptions.CreateTable)
 
-	// animes.TestConnection(ctx)
-
-	sliceAnime, _ := animes.SearchAnimeByName(ctx, "frieren")
-
-	for _, anime := range sliceAnime {
-		logger.Info(anime.English)
-	}
-
 	// animes_, _ := animes.SearchAnimeByName(ctx, "frieren")
 
-	// tgbot.StartBotAndHandleUpdates(ctx, cancel, db)
+	tgbot.StartBotAndHandleUpdates(ctx, cancel, db)
 
 }

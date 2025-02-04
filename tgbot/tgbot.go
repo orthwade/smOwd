@@ -7,53 +7,55 @@ import (
 	"os"
 	"os/signal"
 	"smOwd/logs"
-	"strconv"
+
+	// "strconv"
 	"syscall"
 	"time"
 
-	"smOwd/pql"
+	// "smOwd/pql"
 	"smOwd/users"
 
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
-type HandleUpdateMode int
+type handleUpdateMode int
 
 const (
-	HandleUpdateModeBasic HandleUpdateMode = iota
-	HandleUpdateModeSearch
-	HandleUpdateModeSubscribe
-	HandleUpdateModeRemove
+	handleUpdateModeInit handleUpdateMode = iota
+	handleUpdateModeBasic
+	handleUpdateModeSearch
+	handleUpdateModeSubscribe
+	handleUpdateModeRemove
 )
 
-func (c HandleUpdateMode) String() string {
+func (c handleUpdateMode) String() string {
 	return [...]string{"Basic", "Search"}[c]
 }
 
 type sessionData struct {
-	HandleUpdateMode
+	handleUpdateMode
 }
 
 type userHandle struct {
-	SessionData sessionData
+	sessionDataField sessionData
 }
 
-var mapIdUserHandle = make(map[int]userHandle)
+var mapIdUserHandle = make(map[int]*userHandle)
 
 func checkAndAddUserToMap(ctx context.Context, userID int) {
 	logger := logs.DefaultFromCtx(ctx)
 
-	_, exists := mapIdUserHandle[user.ID]
+	_, exists := mapIdUserHandle[userID]
 
 	if !exists {
-		logger.Info("Adding user handle to map", "ID", user.ID, "Telegram username", user.UserName)
-		sessionDataObj := sessionData{HandleUpdateMode: HandleUpdateModeBasic}
-		userHandleObj := userHandle{SessionData: sessionDataObj}
-		mapIdUserHandle[user.ID] = userHandleObj
+		logger.Info("Adding user handle to map", "ID", userID)
+		sessionDataObj := sessionData{handleUpdateMode: handleUpdateModeInit}
+		userHandleObj := userHandle{sessionDataField: sessionDataObj}
+		mapIdUserHandle[userID] = &userHandleObj
 	}
 }
 
-func CreateInlineKeyboard(listText []string,
+func createInlineKeyboard(listText []string,
 	maxCols int) tgbotapi.InlineKeyboardMarkup {
 	// Create an empty slice to hold the keyboard rows
 	var keyboard [][]tgbotapi.InlineKeyboardButton
@@ -82,36 +84,47 @@ func CreateInlineKeyboard(listText []string,
 	return tgbotapi.NewInlineKeyboardMarkup(keyboard...)
 }
 
-func GeneralMessage(msgStr string, keyboard tgbotapi.InlineKeyboardMarkup,
-	msg tgbotapi.MessageConfig) (string, tgbotapi.InlineKeyboardMarkup,
-	tgbotapi.MessageConfig) {
-	// Modify msgStr by appending the text
-	msgStr += "Please choose one of the options:\n"
+func generalMessage(chatID int, notificationsEnabled bool) *tgbotapi.MessageConfig {
+	msgStr := "Please choose one of the options:\n"
+	msg := tgbotapi.NewMessage(int64(chatID), msgStr)
 
-	// Inline keyboard for subscription options
-	keyboard = tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Enable\nnotifications", "enable"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Disable\nnotifications", "disable"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Show\nsubscriptions", "subscriptions"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Remove subscriptions", "remove"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Search anime by name", "search"),
-		),
-	)
+	var keyboard tgbotapi.InlineKeyboardMarkup
 
-	// Modify the msg object by adding the keyboard to it
+	if notificationsEnabled {
+		keyboard = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Disable\nnotifications", "disable"),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Show\nsubscriptions", "subscriptions"),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Remove subscriptions", "remove"),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Search anime by name", "search"),
+			),
+		)
+	} else {
+		keyboard = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Enable\nnotifications", "enable"),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Show\nsubscriptions", "subscriptions"),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Remove subscriptions", "remove"),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Search anime by name", "search"),
+			),
+		)
+	}
+
 	msg.ReplyMarkup = keyboard
 
-	// Return the modified values
-	return msgStr, keyboard, msg
+	return &msg
 }
 
 // Unified function to handle both messages and inline button callbacks
@@ -129,27 +142,23 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 	var chatID int
 	var tgbotUser *tgbotapi.User
 
-	// var userChatID int
-	// var userMessageText string
+	// var messageText string
 
-	// var msg tgbotapi.MessageConfig
-	// var err error
 	skip := true
 	if update.Message != nil {
 		tgbotUser = update.Message.From
 		telegramID = update.Message.From.ID
-		chatID = update.Message.Chat.ID
-		// userMessageText = misc.RemoveFirstCharIfPresent(update.Message.Text, '/')
+		chatID = int(update.Message.Chat.ID)
+		// messageText = misc.RemoveFirstCharIfPresent(update.Message.Text, '/')
 		skip = false
 
 	} else if update.CallbackQuery != nil { // Handle inline button callback queries
 		tgbotUser = update.Message.From
 		telegramID = update.CallbackQuery.From.ID
-		chatID = update.CallbackQuery.Message.Chat.ID
-		// userMessageText = update.CallbackQuery.Data
+		chatID = int(update.CallbackQuery.Message.Chat.ID)
+		// messageText = update.CallbackQuery.Data
 		skip = false
-		defer bot.AnswerCallbackQuery(
-			tgbotapi.NewCallback(update.CallbackQuery.ID, "Done"))
+		defer bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, "Done"))
 	}
 	if !skip {
 		user = users.FindByTelegramID(ctx, db, telegramID)
@@ -178,6 +187,23 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 			logger.Info("Found user in db", "tg_name", tgbotUser.UserName)
 		}
 
+		checkAndAddUserToMap(ctx, user.ID)
+	}
+
+	userHandlePtr := mapIdUserHandle[user.ID]
+
+	session := &userHandlePtr.sessionDataField
+	updateMode := &session.handleUpdateMode
+
+	if *updateMode == handleUpdateModeInit {
+		logger.Info("Update handle mode Initial", "tgname", user.UserName)
+
+		msg := generalMessage(chatID, user.Enabled)
+		bot.Send(msg)
+
+		*updateMode = handleUpdateModeBasic
+	} else if *updateMode == handleUpdateModeBasic {
+		logger.Info("Update handle mode Basic", "tgname", user.UserName)
 	}
 }
 
