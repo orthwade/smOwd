@@ -37,6 +37,7 @@ func (c handleUpdateMode) String() string {
 type sessionData struct {
 	handleUpdateModeField handleUpdateMode
 	sliceAnime            []animes.Anime
+	lastTgMsg             tgbotapi.MessageConfig
 }
 
 type userHandle struct {
@@ -291,11 +292,15 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 			bot.Send(tgMsg)
 
 			*updateMode = handleUpdateModeSubscribe
+			session.lastTgMsg = tgMsg
 		}
 	} else if *updateMode == handleUpdateModeSubscribe {
 		if update.CallbackQuery == nil {
 			logger.Warn("No button pressed")
-			bot.Send(tgbotapi.NewMessage())
+			bot.Send(tgbotapi.NewMessage(int64(user.ChatID),
+				"Don't text, press a button"))
+
+			bot.Send(session.lastTgMsg)
 		}
 	}
 }
