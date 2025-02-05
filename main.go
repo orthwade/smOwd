@@ -81,7 +81,7 @@ func main() {
 	db := pql.ConnectToDatabaseSubscriptions(ctx, postgresDb)
 	defer db.Close()
 
-	postgresDb.Close()
+	defer postgresDb.Close()
 
 	CreateTableIfNotExistAndPrintInfo(ctx, db, "users", users.CreateTable)
 	CreateTableIfNotExistAndPrintInfo(ctx, db, "animes", animes.CreateTable)
@@ -91,5 +91,4 @@ func main() {
 	// animes_, _ := animes.SearchAnimeByName(ctx, "frieren")
 
 	tgbot.StartBotAndHandleUpdates(ctx, cancel, db)
-
 }

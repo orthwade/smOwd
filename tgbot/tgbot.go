@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"smOwd/misc"
 	// "smOwd/pql"
 	"smOwd/users"
 
@@ -93,10 +94,10 @@ func generalMessage(chatID int, notificationsEnabled bool) *tgbotapi.MessageConf
 	if notificationsEnabled {
 		keyboard = tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Disable\nnotifications", "disable"),
+				tgbotapi.NewInlineKeyboardButtonData("Disable notifications", "disable"),
 			),
 			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Show\nsubscriptions", "subscriptions"),
+				tgbotapi.NewInlineKeyboardButtonData("Show subscriptions", "subscriptions"),
 			),
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("Remove subscriptions", "remove"),
@@ -108,10 +109,10 @@ func generalMessage(chatID int, notificationsEnabled bool) *tgbotapi.MessageConf
 	} else {
 		keyboard = tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Enable\nnotifications", "enable"),
+				tgbotapi.NewInlineKeyboardButtonData("Enable notifications", "enable"),
 			),
 			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Show\nsubscriptions", "subscriptions"),
+				tgbotapi.NewInlineKeyboardButtonData("Show subscriptions", "subscriptions"),
 			),
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("Remove subscriptions", "remove"),
@@ -153,7 +154,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 		skip = false
 
 	} else if update.CallbackQuery != nil { // Handle inline button callback queries
-		tgbotUser = update.Message.From
+		tgbotUser = update.CallbackQuery.Message.From
 		telegramID = update.CallbackQuery.From.ID
 		chatID = int(update.CallbackQuery.Message.Chat.ID)
 		messageText = update.CallbackQuery.Data
@@ -204,8 +205,29 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 		*updateMode = handleUpdateModeBasic
 	} else if *updateMode == handleUpdateModeBasic {
 		logger.Info("Update handle mode Basic", "tgname", user.UserName)
-		
-		if messageText == "Enable"
+
+		if messageText == "enable" {
+			err := users.Enable(ctx, db, user.ID)
+
+			if err {
+				logger.Info("Enabled notifications",
+					"Telegram username", user.UserName)
+			} else {
+				logger.Error("Failed to enable notifications",
+					"Telegram username", user.UserName)
+			}
+
+		} else if messageText == "disable" {
+			err := users.Disable(ctx, db, user.ID)
+
+			if err {
+				logger.Info("Disabled notifications",
+					"Telegram username", user.UserName)
+			} else {
+				logger.Error("Failed to disable notifications",
+					"Telegram username", user.UserName)
+			}
+		}
 	}
 }
 

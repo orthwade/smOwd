@@ -296,5 +296,9 @@ func SetField(ctx context.Context, db *sql.DB, tableName, keyColumn string,
 	logger.Info("Executing query", "query", query)
 
 	_, err := db.ExecContext(ctx, query, fieldValue, keyValue)
-	return err
+
+	if err != nil {
+		return err
+	}
+	return nil
 }

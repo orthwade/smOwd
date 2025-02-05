@@ -113,9 +113,9 @@ func setEnabled(ctx context.Context, db *sql.DB, id int, val bool) error {
 	return pql.SetField(ctx, db, "users", "id", id, "enabled", val)
 }
 func Enable(ctx context.Context, db *sql.DB, id int) error {
-	return setEnabled(true)
+	return setEnabled(ctx, db, id, true)
 }
 
 func Disable(ctx context.Context, db *sql.DB, id int) error {
-	return setEnabled(false)
+	return setEnabled(ctx, db, id, false)
 }
