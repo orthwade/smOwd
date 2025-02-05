@@ -200,32 +200,48 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 		logger.Info("Update handle mode Initial", "tgname", user.UserName)
 
 		msg := generalMessage(chatID, user.Enabled)
+		bot.Send(tgbotapi.NewMessage(int64(chatID), "Started!"))
+
 		bot.Send(msg)
 
 		*updateMode = handleUpdateModeBasic
+
 	} else if *updateMode == handleUpdateModeBasic {
 		logger.Info("Update handle mode Basic", "tgname", user.UserName)
 
 		if messageText == "enable" {
 			err := users.Enable(ctx, db, user.ID)
 
-			if err {
+			if err == nil {
 				logger.Info("Enabled notifications",
 					"Telegram username", user.UserName)
+
+				bot.Send(tgbotapi.NewMessage(int64(chatID), "Enabled notifications"))
+				bot.Send(generalMessage(chatID, true))
 			} else {
 				logger.Error("Failed to enable notifications",
-					"Telegram username", user.UserName)
+					"Telegram username", user.UserName,
+					"error", err)
+
+				bot.Send(generalMessage(chatID, user.Enabled))
 			}
 
 		} else if messageText == "disable" {
 			err := users.Disable(ctx, db, user.ID)
 
-			if err {
+			if err == nil {
 				logger.Info("Disabled notifications",
 					"Telegram username", user.UserName)
+
+				bot.Send(tgbotapi.NewMessage(int64(chatID), "Disabled notifications"))
+				bot.Send(generalMessage(chatID, false))
+
 			} else {
 				logger.Error("Failed to disable notifications",
-					"Telegram username", user.UserName)
+					"Telegram username", user.UserName,
+					"error", err)
+
+				bot.Send(generalMessage(chatID, user.Enabled))
 			}
 		}
 	}
