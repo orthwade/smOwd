@@ -154,6 +154,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 		telegramID = update.Message.From.ID
 		chatID = int(update.Message.Chat.ID)
 		messageText = misc.RemoveFirstCharIfPresent(update.Message.Text, '/')
+
 		skip = false
 
 	} else if update.CallbackQuery != nil { // Handle inline button callback queries
@@ -261,8 +262,6 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 
 			*updateMode = handleUpdateModeBasic
 		} else {
-			*updateMode = handleUpdateModeSubscribe
-
 			var keyboard [][]tgbotapi.InlineKeyboardButton
 			var buttons []tgbotapi.InlineKeyboardButton
 
@@ -290,6 +289,13 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 			tgMsg := tgbotapi.NewMessage(int64(chatID), tgMsgText)
 			tgMsg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(keyboard...)
 			bot.Send(tgMsg)
+
+			*updateMode = handleUpdateModeSubscribe
+		}
+	} else if *updateMode == handleUpdateModeSubscribe {
+		if update.CallbackQuery == nil {
+			logger.Warn("No button pressed")
+			bot.Send(tgbotapi.NewMessage())
 		}
 	}
 }

@@ -42,8 +42,7 @@ func CreateTableIfNotExistAndPrintInfo(ctx context.Context,
 	if tableExists {
 		logger.Info("Table " + tableName + " already created")
 	} else {
-		logger.Warn("Table " + tableName +
-			" isn't created yet. Attempting create")
+		logger.Warn("Table " + tableName + " isn't created yet. Attempting create")
 		createFunc(ctx, db)
 	}
 
@@ -81,14 +80,12 @@ func main() {
 	db := pql.ConnectToDatabaseSubscriptions(ctx, postgresDb)
 	defer db.Close()
 
-	defer postgresDb.Close()
+	postgresDb.Close()
 
 	CreateTableIfNotExistAndPrintInfo(ctx, db, "users", users.CreateTable)
 	CreateTableIfNotExistAndPrintInfo(ctx, db, "animes", animes.CreateTable)
 	CreateTableIfNotExistAndPrintInfo(ctx, db, "subscriptions",
 		subscriptions.CreateTable)
-
-	// animes_, _ := animes.SearchAnimeByName(ctx, "frieren")
 
 	tgbot.StartBotAndHandleUpdates(ctx, cancel, db)
 }
