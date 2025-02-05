@@ -282,15 +282,19 @@ func RemoveRecord(ctx context.Context, db *sql.DB, tableName string, id int) err
 	return err
 }
 
-func SetIntFieldByIntKey(ctx context.Context, db *sql.DB, tableName string, keyName string,
-	keyValue int, fieldName string, fieldValue int) {
+func SetField(ctx context.Context, db *sql.DB, tableName, keyColumn string,
+	keyValue interface{}, fieldColumn string, fieldValue interface{}) error {
 
 	logger := logs.DefaultFromCtx(ctx)
 
 	query := fmt.Sprintf(`
-	UPDATE %s
-	SET $2 = $3
-	WHERE $4 = $5;
-	`, tableName, fieldName, value, keyName, keyValue)
+        UPDATE %s
+        SET %s = $1
+        WHERE %s = $2;
+    `, tableName, fieldColumn, keyColumn)
 
+	logger.Info("Executing query", "query", query)
+
+	_, err := db.ExecContext(ctx, query, fieldValue, keyValue)
+	return err
 }
