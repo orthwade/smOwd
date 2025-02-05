@@ -8,12 +8,13 @@ import (
 	"os/signal"
 	"smOwd/logs"
 
-	// "strconv"
+	"strconv"
 	"syscall"
 	"time"
 
 	"smOwd/misc"
 	// "smOwd/pql"
+	"smOwd/animes"
 	"smOwd/users"
 
 	"github.com/go-telegram-bot-api/telegram-bot-api"
@@ -34,7 +35,8 @@ func (c handleUpdateMode) String() string {
 }
 
 type sessionData struct {
-	handleUpdateMode
+	handleUpdateModeField handleUpdateMode
+	sliceAnime            []animes.Anime
 }
 
 type userHandle struct {
@@ -50,7 +52,8 @@ func checkAndAddUserToMap(ctx context.Context, userID int) {
 
 	if !exists {
 		logger.Info("Adding user handle to map", "ID", userID)
-		sessionDataObj := sessionData{handleUpdateMode: handleUpdateModeInit}
+		sessionDataObj := sessionData{handleUpdateModeField: handleUpdateModeInit,
+			sliceAnime: nil}
 		userHandleObj := userHandle{sessionDataField: sessionDataObj}
 		mapIdUserHandle[userID] = &userHandleObj
 	}
@@ -194,7 +197,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 	userHandlePtr := mapIdUserHandle[user.ID]
 
 	session := &userHandlePtr.sessionDataField
-	updateMode := &session.handleUpdateMode
+	updateMode := &session.handleUpdateModeField
 
 	if *updateMode == handleUpdateModeInit {
 		logger.Info("Update handle mode Initial", "tgname", user.UserName)
@@ -243,6 +246,50 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 
 				bot.Send(generalMessage(chatID, user.Enabled))
 			}
+		} else if messageText == "search" {
+			bot.Send(tgbotapi.NewMessage(int64(chatID), "Enter the name of the anime"))
+			*updateMode = handleUpdateModeSearch
+		}
+	} else if *updateMode == handleUpdateModeSearch {
+		var err error
+		session.sliceAnime, err = animes.SearchAnimeByName(ctx, messageText)
+
+		if err != nil {
+			logger.Error("Error searching for anime",
+				"Anime name", messageText,
+				"error", err)
+
+			*updateMode = handleUpdateModeBasic
+		} else {
+			*updateMode = handleUpdateModeSubscribe
+
+			var keyboard [][]tgbotapi.InlineKeyboardButton
+			var buttons []tgbotapi.InlineKeyboardButton
+
+			col := 0
+
+			var tgMsgText string
+
+			for i, anime := range session.sliceAnime {
+				animeStr := strconv.Itoa(i+1) + ". " + anime.English + " / " + anime.Japanese + "\n"
+				buttons = append(buttons,
+					tgbotapi.NewInlineKeyboardButtonData(strconv.Itoa(i+1), strconv.Itoa(i)))
+
+				tgMsgText += animeStr
+
+				col++
+				if col > 4 {
+					col = 0
+					keyboard = append(keyboard, buttons)
+					buttons = []tgbotapi.InlineKeyboardButton{}
+				}
+			}
+			if len(buttons) > 0 {
+				keyboard = append(keyboard, buttons)
+			}
+			tgMsg := tgbotapi.NewMessage(int64(chatID), tgMsgText)
+			tgMsg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(keyboard...)
+			bot.Send(tgMsg)
 		}
 	}
 }

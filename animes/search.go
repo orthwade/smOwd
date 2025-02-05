@@ -74,11 +74,11 @@ func SearchAnimeByName(ctx context.Context, name string) ([]Anime, error) {
 	}
 
 	resp, err := client.Do(req)
-	defer resp.Body.Close()
 
 	if err != nil {
 		logger.Fatal("Failed request", "error", err)
 	}
+	defer resp.Body.Close()
 
 	respBody, err := ioutil.ReadAll(resp.Body)
 
