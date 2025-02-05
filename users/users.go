@@ -108,3 +108,14 @@ func FindByTelegramID(ctx context.Context, db *sql.DB, telegramID int) *User {
 func Remove(ctx context.Context, db *sql.DB, id int) error {
 	return pql.RemoveRecord(ctx, db, tableName, id)
 }
+
+func setEnabled(ctx context.Context, db *sql.DB, id int, val bool) error {
+	return pql.SetField(ctx, db, "users", "id", id, "enabled", val)
+}
+func Enable(ctx context.Context, db *sql.DB, id int) error {
+	return setEnabled(true)
+}
+
+func Disable(ctx context.Context, db *sql.DB, id int) error {
+	return setEnabled(false)
+}
