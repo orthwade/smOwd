@@ -44,23 +44,43 @@ func CreateTable(ctx context.Context, db *sql.DB) error {
 	return pql.CreateTable(ctx, db, tableName, columns, indexName, indexColumn)
 }
 
-func Add(ctx context.Context, db *sql.DB, u *User) error {
+func Add(ctx context.Context, db *sql.DB, u *User) (int, error) {
 	logger := logs.DefaultFromCtx(ctx)
 
 	query := `
 		INSERT INTO users (telegram_id, chat_id, first_name, last_name, user_name, language_code, is_bot, enabled)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		ON CONFLICT (telegram_id) DO NOTHING;
+		ON CONFLICT (telegram_id) DO NOTHING
+		RETURNING id
 	`
 
-	_, err := db.ExecContext(ctx, query, u.TelegramID, u.ChatID, u.FirstName, u.LastName, u.UserName, u.LanguageCode, u.IsBot, u.Enabled)
+	var id int
+
+	result, err := db.ExecContext(ctx, query, u.TelegramID, u.ChatID, u.FirstName,
+		u.LastName, u.UserName, u.LanguageCode, u.IsBot, u.Enabled)
 	if err != nil {
 		logger.Error("Failed to add record to users", "error", err)
-		return err
+		return -1, err
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+
+	if rowsAffected == 0 {
+		logger.Warn("No new row inserted due to conflict")
+		return -1, nil
+	} else {
+		id64, err := result.LastInsertId()
+
+		if err != nil {
+			logger.Error("Error getting last insert ID", "error", err)
+			return -1, err
+		}
+
+		id = int(id64)
 	}
 
 	logger.Info(fmt.Sprintf("User with TelegramID %d added successfully", u.TelegramID))
-	return nil
+	return id, nil
 }
 
 func Find(ctx context.Context, db *sql.DB, fieldName string, fieldValue int) *User {

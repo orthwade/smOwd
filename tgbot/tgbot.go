@@ -181,14 +181,15 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 				IsBot:        tgbotUser.IsBot,
 				Enabled:      true, // Default to enabled, or adjust as needed
 			}
-			users.Add(ctx, db, user)
+			user_id, err := users.Add(ctx, db, user)
 
-			user = users.FindByTelegramID(ctx, db, telegramID)
-
-			if user == nil {
-				logger.Fatal("Fatal error processing user", "Telegram ID", telegramID)
+			if err != nil {
+				logger.Fatal("Error adding user to db",
+					"Telegram ID", user.TelegramID,
+					"error", err)
 			}
 
+			user.ID = user_id
 		} else {
 			logger.Info("Found user in db", "tg_name", tgbotUser.UserName)
 		}
@@ -271,7 +272,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 			var tgMsgText string
 
 			for i, anime := range session.sliceAnime {
-				animeStr := strconv.Itoa(i+1) + ". " + anime.English + " / " + anime.Japanese + "\n"
+				animeStr := strconv.Itoa(i+1) + ". " + anime.English + " / " + anime.URL + "\n"
 				buttons = append(buttons,
 					tgbotapi.NewInlineKeyboardButtonData(strconv.Itoa(i+1), strconv.Itoa(i)))
 
@@ -310,8 +311,9 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 			bot.Send(session.lastTgMsg)
 		} else if messageText == "cancel" {
 			bot.Send(generalMessage(chatID, user.Enabled))
+			*updateMode = handleUpdateModeBasic
 		} else {
-			i, err := strconv.Atoi(messageText)
+			i, _ := strconv.Atoi(messageText)
 
 			anime := &session.sliceAnime[i]
 

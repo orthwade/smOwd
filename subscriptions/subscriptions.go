@@ -14,8 +14,9 @@ import (
 const tableName = "subscriptions"
 
 type Subscription struct {
-	ID                  int
+	ID                  int //PRIMARY KEY
 	UserID              int
+	TelegramID          int
 	ShikiID             int
 	LastEpisodeNotified int
 }
@@ -31,12 +32,15 @@ func CreateTable(ctx context.Context, db *sql.DB) error {
 	query := fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s (
 			id SERIAL PRIMARY KEY,
-			user_id INT NOT NULL,
-			shiki_id INT NOT NULL,
+			user_id SERIAL NOT NULL,
+			telegram_id INT NOT NULL,
+			shiki_id TEXT NOT NULL,
 			last_episode_notified INT DEFAULT 0,
 
-			CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-			UNIQUE (user_id, shiki_id)
+			CONSTRAINT fk_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+			CONSTRAINT fk_telegram_id FOREIGN KEY (telegram_id) REFERENCES users (telegram_id) ON DELETE CASCADE,
+			UNIQUE (user_id, shiki_id),
+			UNIQUE (telegram_id, shiki_id)
 		);
 	`, tableName)
 
@@ -55,7 +59,15 @@ func CreateTable(ctx context.Context, db *sql.DB) error {
 	}
 
 	_, err = db.ExecContext(ctx,
-		"CREATE INDEX IF NOT EXISTS idx_shiki_id ON subscriptions (shiki_id);")
+		"CREATE INDEX IF NOT EXISTS idx_telegram_id ON subscriptions (telegram_id);")
+	if err != nil {
+		logger.Fatal("Failed to index telegram id column", "error", err)
+		return fmt.Errorf("Failed to index telegram id column: %w", err)
+	}
+
+	_, err = db.ExecContext(ctx,
+		"CREATE INDEX IF NOT EXISTS idx_shiki_id ON subscriptions USING HASH (shiki_id);")
+
 	if err != nil {
 		logger.Fatal("Failed to index anime id column", "error", err)
 		return fmt.Errorf("Failed to index anime id column: %w", err)
@@ -65,26 +77,44 @@ func CreateTable(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-func Add(ctx context.Context, db *sql.DB, s Subscription) error {
+func Add(ctx context.Context, db *sql.DB, s Subscription) (int, error) {
 	logger := logs.DefaultFromCtx(ctx)
 
 	// Define the SQL query to insert a new subscription record
 	query := `
-        INSERT INTO subscriptions (user_id, shiki_id, last_episode_notified)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (user_id, shiki_id) DO NOTHING;  -- Avoid duplicate subscriptions for the same user and anime
+        INSERT INTO subscriptions (user_id, telegram_id, shiki_id, last_episode_notified)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (user_id, telegram_id, shiki_id) DO NOTHING
     `
 
 	// Execute the query with the provided Subscription data
-	_, err := db.ExecContext(ctx, query, s.UserID, s.ShikiID, s.LastEpisodeNotified)
+	result, err := db.ExecContext(ctx, query, s.TelegramID, s.ShikiID, s.LastEpisodeNotified)
 	if err != nil {
 		logger.Error("Failed to add subscription", "error", err)
-		return err
+		return -1, err
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+
+	var id int
+
+	if rowsAffected == 0 {
+		logger.Warn("No new row inserted due to conflict")
+		return -1, nil
+	} else {
+		id64, err := result.LastInsertId()
+
+		if err != nil {
+			logger.Error("Error getting last insert ID", "error", err)
+			return -1, err
+		}
+
+		id = int(id64)
 	}
 
 	// Log successful insertion
-	logger.Info(fmt.Sprintf("Subscription added for user %d and anime %d", s.UserID, s.ShikiID))
-	return nil
+	logger.Info(fmt.Sprintf("Subscription added for user %d and anime %d", s.TelegramID, s.ShikiID))
+	return id, nil
 }
 
 func get(ctx context.Context,
@@ -102,8 +132,8 @@ func GetByID(ctx context.Context, db *sql.DB, id int) (*Subscription, error) {
 }
 
 func GetByUserID(ctx context.Context,
-	db *sql.DB, user_id int) (*Subscription, error) {
-	return get(ctx, db, "user_id", user_id)
+	db *sql.DB, telegram_id int) (*Subscription, error) {
+	return get(ctx, db, "telegram_id", telegram_id)
 }
 
 func GetByAnimeID(ctx context.Context,

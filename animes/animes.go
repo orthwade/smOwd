@@ -3,16 +3,11 @@ package animes
 import (
 	"bytes"
 	"context"
-
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-
-	// "log/slog"
 	"net/http"
-	// "os"
 	"smOwd/logs"
-	"strconv"
 	"time"
 )
 
@@ -25,34 +20,23 @@ type GraphQLRequest struct {
 var client = &http.Client{Timeout: 10 * time.Second}
 
 type Anime struct {
-	ShikiID       int
-	MalID         int
-	English       string
-	Japanese      string
-	Status        string
-	Episodes      int
-	EpisodesAired int
-	URL           string
+	ShikiID       string `json:"id"`
+	MalID         string `json:"malId"`
+	English       string `json:"english"`
+	Japanese      string `json:"japanese"`
+	Status        string `json:"status"`
+	Episodes      int    `json:"episodes"`
+	EpisodesAired int    `json:"episodesAired"`
+	URL           string `json:"url"`
 }
 
 type AnimeResponse struct {
 	Data struct {
-		Animes []struct {
-			ShikiID       string `json:"id"`
-			MalID         string `json:"malId"`
-			English       string `json:"english"`
-			Japanese      string `json:"japanese"`
-			Status        string `json:"status"`
-			Episodes      int    `json:"episodes"`
-			EpisodesAired int    `json:"episodesAired"`
-			URL           string `json:"url"`
-		} `json:"animes"`
+		Animes []Anime `json:"animes"`
 	} `json:"data"`
 }
 
 func SearchAnimeByName(ctx context.Context, name string) ([]Anime, error) {
-	var sliceAnime []Anime
-
 	logger := logs.DefaultFromCtx(ctx)
 
 	query := fmt.Sprintf(` query{
@@ -106,31 +90,6 @@ func SearchAnimeByName(ctx context.Context, name string) ([]Anime, error) {
 	if err != nil {
 		logger.Fatal("Failed to unmarshall", "error", err)
 	}
-	for _, anime := range animeResponse.Data.Animes {
 
-		shikiIdInt, err := strconv.Atoi(anime.ShikiID)
-
-		if err != nil {
-			logger.Error("Failed to convert shiki ID to integer", "error", err)
-			return nil, err
-		}
-
-		malIdInt, err := strconv.Atoi(anime.MalID)
-
-		if err != nil {
-			logger.Error("Failed to convert Mal ID to integer", "error", err)
-			return nil, err
-		}
-
-		sliceAnime = append(sliceAnime, Anime{
-			ShikiID:       shikiIdInt,
-			MalID:         malIdInt,
-			English:       anime.English,
-			Japanese:      anime.Japanese,
-			Status:        anime.Status,
-			Episodes:      anime.Episodes,
-			EpisodesAired: anime.EpisodesAired})
-	}
-
-	return sliceAnime, nil
+	return animeResponse.Data.Animes, nil
 }

@@ -3,13 +3,11 @@ package main
 import (
 	"context"
 
-	// "log"
 	"log/slog"
 	"os"
 	"smOwd/logs"
 
 	"database/sql"
-	"smOwd/animes"
 	"smOwd/pql"
 	"smOwd/subscriptions"
 
@@ -86,5 +84,6 @@ func main() {
 	CreateTableIfNotExistAndPrintInfo(ctx, db, "subscriptions",
 		subscriptions.CreateTable)
 
+	return
 	tgbot.StartBotAndHandleUpdates(ctx, cancel, db)
 }
