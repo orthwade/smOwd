@@ -311,19 +311,18 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 		} else if messageText == "cancel" {
 			bot.Send(generalMessage(chatID, user.Enabled))
 		} else {
-			i := strconv.Atoi(messageText)
+			i, err := strconv.Atoi(messageText)
 
-			animeFromSavedSlice := session.sliceAnime[i]
+			anime := &session.sliceAnime[i]
 
-			animeFromDb := animes.FindByShikiID(ctx, db,
-				animeFromSavedSlice.ShikiID)
+			*updateMode = handleUpdateModeBasic
 
-			if animeFromDb == nil {
-				animes.Add()
-			}
+			logger.Info("Selected anime",
+				"Anime name", anime.English)
 
-			anime := animes.FindByShikiID()
+			logger.Warn("Work in progress")
 
+			bot.Send(generalMessage(chatID, user.Enabled))
 		}
 	}
 }

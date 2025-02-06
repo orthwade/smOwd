@@ -25,18 +25,28 @@ type GraphQLRequest struct {
 var client = &http.Client{Timeout: 10 * time.Second}
 
 type Anime struct {
-	ShikiID       string `json:"id"`
-	MalId         string `json:"malId"`
-	English       string `json:"english"`
-	Japanese      string `json:"japanese"`
-	Status        string `json:"status"`
-	Episodes      int    `json:"episodes"`
-	EpisodesAired int    `json:"episodesAired"`
+	ShikiID       int
+	MalID         int
+	English       string
+	Japanese      string
+	Status        string
+	Episodes      int
+	EpisodesAired int
+	URL           string
 }
 
 type AnimeResponse struct {
 	Data struct {
-		Animes []Anime `json:"animes"`
+		Animes []struct {
+			ShikiID       string `json:"id"`
+			MalID         string `json:"malId"`
+			English       string `json:"english"`
+			Japanese      string `json:"japanese"`
+			Status        string `json:"status"`
+			Episodes      int    `json:"episodes"`
+			EpisodesAired int    `json:"episodesAired"`
+			URL           string `json:"url"`
+		} `json:"animes"`
 	} `json:"data"`
 }
 
@@ -54,6 +64,7 @@ func SearchAnimeByName(ctx context.Context, name string) ([]Anime, error) {
 			status
 			episodes 
 			episodesAired
+			url
 		}
 	}`, name)
 
@@ -104,7 +115,7 @@ func SearchAnimeByName(ctx context.Context, name string) ([]Anime, error) {
 			return nil, err
 		}
 
-		malIdInt, err := strconv.Atoi(anime.MalId)
+		malIdInt, err := strconv.Atoi(anime.MalID)
 
 		if err != nil {
 			logger.Error("Failed to convert Mal ID to integer", "error", err)
@@ -112,7 +123,6 @@ func SearchAnimeByName(ctx context.Context, name string) ([]Anime, error) {
 		}
 
 		sliceAnime = append(sliceAnime, Anime{
-			ID:            -1,
 			ShikiID:       shikiIdInt,
 			MalID:         malIdInt,
 			English:       anime.English,

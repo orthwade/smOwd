@@ -16,7 +16,7 @@ const tableName = "subscriptions"
 type Subscription struct {
 	ID                  int
 	UserID              int
-	AnimeID             int
+	ShikiID             int
 	LastEpisodeNotified int
 }
 
@@ -76,14 +76,14 @@ func Add(ctx context.Context, db *sql.DB, s Subscription) error {
     `
 
 	// Execute the query with the provided Subscription data
-	_, err := db.ExecContext(ctx, query, s.UserID, s.AnimeID, s.LastEpisodeNotified)
+	_, err := db.ExecContext(ctx, query, s.UserID, s.ShikiID, s.LastEpisodeNotified)
 	if err != nil {
 		logger.Error("Failed to add subscription", "error", err)
 		return err
 	}
 
 	// Log successful insertion
-	logger.Info(fmt.Sprintf("Subscription added for user %d and anime %d", s.UserID, s.AnimeID))
+	logger.Info(fmt.Sprintf("Subscription added for user %d and anime %d", s.UserID, s.ShikiID))
 	return nil
 }
 
