@@ -84,6 +84,6 @@ func main() {
 	CreateTableIfNotExistAndPrintInfo(ctx, db, "subscriptions",
 		subscriptions.CreateTable)
 
-	return
+	// return
 	tgbot.StartBotAndHandleUpdates(ctx, cancel, db)
 }

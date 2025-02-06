@@ -240,30 +240,6 @@ func FindRecord(ctx context.Context, db *sql.DB, tableName string,
 	logger.Info(fmt.Sprintf("Record from %s with %s = %v retrieved successfully", tableName, idFieldName, idValue))
 }
 
-func GetRecord(ctx context.Context, db *sql.DB, tableName string,
-	idFieldName string, idValue int, dest interface{}) error {
-	logger := logs.DefaultFromCtx(ctx)
-
-	query := fmt.Sprintf(`
-		SELECT * FROM %s WHERE %s = $1;
-	`, tableName, idFieldName)
-
-	// Execute the query and scan the result into the destination struct
-	err := db.QueryRowContext(ctx, query, idValue).Scan(dest)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			logger.Warn(fmt.Sprintf("No record found in %s with %s = %v",
-				tableName, idFieldName, idValue))
-			return nil
-		}
-		logger.Error(fmt.Sprintf("Failed to retrieve record from %s", tableName), "error", err, idFieldName, idValue)
-		return fmt.Errorf("failed to retrieve record from %s with %s = %v: %w", tableName, idFieldName, idValue, err)
-	}
-
-	logger.Info(fmt.Sprintf("Record from %s with %s = %v retrieved successfully", tableName, idFieldName, idValue))
-	return nil
-}
-
 func RemoveRecord(ctx context.Context, db *sql.DB, tableName string, id int) error {
 	logger := logs.DefaultFromCtx(ctx)
 

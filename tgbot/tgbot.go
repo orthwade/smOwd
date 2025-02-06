@@ -12,9 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	"smOwd/misc"
-	// "smOwd/pql"
+	"fmt"
 	"smOwd/animes"
+	"smOwd/misc"
+	"smOwd/subscriptions"
 	"smOwd/users"
 
 	"github.com/go-telegram-bot-api/telegram-bot-api"
@@ -322,7 +323,50 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 			logger.Info("Selected anime",
 				"Anime name", anime.English)
 
-			logger.Warn("Work in progress")
+			subscription := subscriptions.Find(ctx, db,
+				user.TelegramID, anime.ShikiID)
+
+			if subscription != nil {
+				logger.Warn("Subscription already exists",
+					"Telegram ID", user.TelegramID,
+					"Shiki ID", anime.ShikiID)
+
+				bot.Send(tgbotapi.NewMessage(int64(chatID),
+					fmt.Sprintf("You are already subscribed to %s", anime.English)))
+
+			} else {
+				subscription = &subscriptions.Subscription{
+					ID:                  -1,
+					TelegramID:          user.TelegramID,
+					ShikiID:             anime.ShikiID,
+					LastEpisodeNotified: 0,
+				}
+
+				logger.Info("Adding subscription to db",
+					"Telegram ID", user.TelegramID,
+					"Anime name", anime.English)
+
+				subscription_id, err := subscriptions.Add(ctx, db, *subscription)
+
+				if err != nil {
+					logger.Fatal("Error adding subscription to db",
+						"Telegram ID", user.TelegramID,
+						"Anime name", anime.English,
+						"error", err)
+				}
+
+				subscription.ID = subscription_id
+
+				logger.Info("Added subscriptions to db",
+					"Telegram ID", user.TelegramID,
+					"Anime name", anime.English,
+					"Subscription ID", subscription.ID)
+
+				bot.Send(tgbotapi.NewMessage(int64(chatID),
+					fmt.Sprintf("You are now subscribed to %s", anime.English)))
+			}
+
+			*updateMode = handleUpdateModeBasic
 
 			bot.Send(generalMessage(chatID, user.Enabled))
 		}

@@ -56,34 +56,27 @@ func Add(ctx context.Context, db *sql.DB, u *User) (int, error) {
 
 	var id int
 
-	result, err := db.ExecContext(ctx, query, u.TelegramID, u.ChatID, u.FirstName,
+	row := db.QueryRowContext(ctx, query, u.TelegramID, u.ChatID, u.FirstName,
 		u.LastName, u.UserName, u.LanguageCode, u.IsBot, u.Enabled)
+
+	err := row.Scan(&id)
+
 	if err != nil {
-		logger.Error("Failed to add record to users", "error", err)
-		return -1, err
-	}
-
-	rowsAffected, _ := result.RowsAffected()
-
-	if rowsAffected == 0 {
-		logger.Warn("No new row inserted due to conflict")
-		return -1, nil
-	} else {
-		id64, err := result.LastInsertId()
-
-		if err != nil {
+		if err == sql.ErrNoRows {
+			logger.Warn("No new row inserted due to conflict")
+			return -1, nil
+		} else {
 			logger.Error("Error getting last insert ID", "error", err)
 			return -1, err
 		}
-
-		id = int(id64)
 	}
 
 	logger.Info(fmt.Sprintf("User with TelegramID %d added successfully", u.TelegramID))
 	return id, nil
 }
 
-func Find(ctx context.Context, db *sql.DB, fieldName string, fieldValue int) *User {
+func Find(ctx context.Context, db *sql.DB, fieldName string,
+	fieldValue interface{}) *User {
 	logger := logs.DefaultFromCtx(ctx)
 
 	query := fmt.Sprintf(`
