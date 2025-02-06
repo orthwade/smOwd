@@ -287,6 +287,12 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 			if len(buttons) > 0 {
 				keyboard = append(keyboard, buttons)
 			}
+			buttons = []tgbotapi.InlineKeyboardButton{}
+			buttons = append(buttons,
+				tgbotapi.NewInlineKeyboardButtonData("Cancel", "cancel"))
+
+			keyboard = append(keyboard, buttons)
+
 			tgMsg := tgbotapi.NewMessage(int64(chatID), tgMsgText)
 			tgMsg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(keyboard...)
 			bot.Send(tgMsg)
@@ -297,10 +303,27 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 	} else if *updateMode == handleUpdateModeSubscribe {
 		if update.CallbackQuery == nil {
 			logger.Warn("No button pressed")
+
 			bot.Send(tgbotapi.NewMessage(int64(user.ChatID),
 				"Don't text, press a button"))
 
 			bot.Send(session.lastTgMsg)
+		} else if messageText == "cancel" {
+			bot.Send(generalMessage(chatID, user.Enabled))
+		} else {
+			i := strconv.Atoi(messageText)
+
+			animeFromSavedSlice := session.sliceAnime[i]
+
+			animeFromDb := animes.FindByShikiID(ctx, db,
+				animeFromSavedSlice.ShikiID)
+
+			if animeFromDb == nil {
+				animes.Add()
+			}
+
+			anime := animes.FindByShikiID()
+
 		}
 	}
 }

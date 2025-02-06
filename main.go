@@ -83,7 +83,6 @@ func main() {
 	postgresDb.Close()
 
 	CreateTableIfNotExistAndPrintInfo(ctx, db, "users", users.CreateTable)
-	CreateTableIfNotExistAndPrintInfo(ctx, db, "animes", animes.CreateTable)
 	CreateTableIfNotExistAndPrintInfo(ctx, db, "subscriptions",
 		subscriptions.CreateTable)
 

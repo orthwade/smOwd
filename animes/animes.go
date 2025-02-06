@@ -1,115 +1,126 @@
 package animes
 
 import (
+	"bytes"
 	"context"
-	"database/sql"
+
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+
+	// "log/slog"
+	"net/http"
+	// "os"
 	"smOwd/logs"
-	"smOwd/pql"
+	"strconv"
+	"time"
 )
 
-const tableName = "animes"
+const url = "https://shikimori.one/api/graphql"
+
+type GraphQLRequest struct {
+	Query string `json:"query"`
+}
+
+var client = &http.Client{Timeout: 10 * time.Second}
 
 type Anime struct {
-	ID            int
-	ShikiID       int
-	MalID         int
-	English       string
-	Japanese      string
-	Status        string
-	Episodes      int
-	EpisodesAired int
+	ShikiID       string `json:"id"`
+	MalId         string `json:"malId"`
+	English       string `json:"english"`
+	Japanese      string `json:"japanese"`
+	Status        string `json:"status"`
+	Episodes      int    `json:"episodes"`
+	EpisodesAired int    `json:"episodesAired"`
 }
 
-func CheckTable(ctx context.Context, db *sql.DB) (bool, error) {
-	return pql.CheckTable(ctx, db, tableName)
+type AnimeResponse struct {
+	Data struct {
+		Animes []Anime `json:"animes"`
+	} `json:"data"`
 }
 
-func CreateTable(ctx context.Context, db *sql.DB) error {
-	columns := `
-		id SERIAL PRIMARY KEY,
-		shiki_id BIGINT UNIQUE NOT NULL,
-		mal_id BIGINT UNIQUE,
-		english TEXT,
-		japanese TEXT,
-		status TEXT,
-		episodes INT NOT NULL,
-		episodes_aired INT NOT NULL
-	`
-	indexName := "idx_shiki_id"
-	indexColumn := "shiki_id"
-	return pql.CreateTable(ctx, db, tableName, columns, indexName, indexColumn)
-}
+func SearchAnimeByName(ctx context.Context, name string) ([]Anime, error) {
+	var sliceAnime []Anime
 
-func Add(ctx context.Context, db *sql.DB, a *Anime) error {
 	logger := logs.DefaultFromCtx(ctx)
 
-	query := `
-		INSERT INTO animes (shiki_id, mal_id, english, japanese, status, episodes, episodes_aired)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		ON CONFLICT (shiki_id) DO NOTHING;
-	`
-
-	_, err := db.ExecContext(ctx, query, a.ShikiID, a.MalID, a.English,
-		a.Japanese, a.Status, a.Episodes, a.EpisodesAired)
-
-	if err != nil {
-		logger.Error("Failed to add anime", "error", err, "anime", a)
-		return err
-	}
-
-	logger.Info(fmt.Sprintf("Anime with ShikiID %d added successfully", a.ShikiID))
-	return nil
-}
-
-func Find(ctx context.Context, db *sql.DB, fieldName string, fieldValue int) *Anime {
-	logger := logs.DefaultFromCtx(ctx)
-
-	query := fmt.Sprintf(`
-		SELECT id, shiki_id, mal_id, english, japanese, status, episodes, episodes_aired
-		FROM %s
-		WHERE %s = $1;
-	`, tableName, fieldName)
-
-	var anime Anime
-	err := db.QueryRowContext(ctx, query, fieldValue).Scan(
-		&anime.ID,
-		&anime.ShikiID,
-		&anime.MalID,
-		&anime.English,
-		&anime.Japanese,
-		&anime.Status,
-		&anime.Episodes,
-		&anime.EpisodesAired,
-	)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			logger.Warn("No anime found with", fieldName, fieldValue)
-			return nil // Return nil if the user is not found
+	query := fmt.Sprintf(` query{
+		animes(search: "%s", limit: 50) {
+			id       
+			malId    
+			english   
+			japanese 
+			status
+			episodes 
+			episodesAired
 		}
-		logger.Error("Failed to retrieve anime", fieldName, fieldValue, "error", err)
-		return nil // Return nil if there's any other error
+	}`, name)
+
+	reqBody := GraphQLRequest{Query: query}
+
+	reqBodyJson, err := json.Marshal(reqBody)
+
+	if err != nil {
+		logger.Error("Failed to marshall query", "error", err)
+		return nil, err
 	}
 
-	logger.Info(fmt.Sprintf("Anime with %s = %d retrieved successfully", fieldName, fieldValue))
-	return &anime
-}
+	req, err := http.NewRequestWithContext(ctx, "POST", url,
+		bytes.NewBuffer(reqBodyJson))
 
-// FindByID queries the "animes" table by its primary key (id).
-func FindByID(ctx context.Context, db *sql.DB, id int) *Anime {
-	return Find(ctx, db, "id", id)
-}
+	req.Header.Set("Content-Type", "application/json")
 
-// FindByShikiID queries the "animes" table by ShikiID.
-func FindByShikiID(ctx context.Context, db *sql.DB, shikiID int) *Anime {
-	return Find(ctx, db, "shiki_id", shikiID)
-}
+	if err != nil {
+		logger.Fatal("Failed to create requet", "error", err)
+	}
 
-// FindByMalID queries the "animes" table by MalID.
-func FindByMalID(ctx context.Context, db *sql.DB, malID int) *Anime {
-	return Find(ctx, db, "mal_id", malID)
-}
+	resp, err := client.Do(req)
 
-func Remove(ctx context.Context, db *sql.DB, id int) error {
-	return pql.RemoveRecord(ctx, db, tableName, id)
+	if err != nil {
+		logger.Fatal("Failed request", "error", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+
+	if err != nil {
+		logger.Fatal("Failed to read response", "error", err)
+	}
+
+	var animeResponse AnimeResponse
+
+	err = json.Unmarshal(respBody, &animeResponse)
+
+	if err != nil {
+		logger.Fatal("Failed to unmarshall", "error", err)
+	}
+	for _, anime := range animeResponse.Data.Animes {
+
+		shikiIdInt, err := strconv.Atoi(anime.ShikiID)
+
+		if err != nil {
+			logger.Error("Failed to convert shiki ID to integer", "error", err)
+			return nil, err
+		}
+
+		malIdInt, err := strconv.Atoi(anime.MalId)
+
+		if err != nil {
+			logger.Error("Failed to convert Mal ID to integer", "error", err)
+			return nil, err
+		}
+
+		sliceAnime = append(sliceAnime, Anime{
+			ID:            -1,
+			ShikiID:       shikiIdInt,
+			MalID:         malIdInt,
+			English:       anime.English,
+			Japanese:      anime.Japanese,
+			Status:        anime.Status,
+			Episodes:      anime.Episodes,
+			EpisodesAired: anime.EpisodesAired})
+	}
+
+	return sliceAnime, nil
 }

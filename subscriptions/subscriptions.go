@@ -32,12 +32,11 @@ func CreateTable(ctx context.Context, db *sql.DB) error {
 		CREATE TABLE IF NOT EXISTS %s (
 			id SERIAL PRIMARY KEY,
 			user_id INT NOT NULL,
-			anime_id INT NOT NULL,
+			shiki_id INT NOT NULL,
 			last_episode_notified INT DEFAULT 0,
 
 			CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-			CONSTRAINT fk_anime FOREIGN KEY (anime_id) REFERENCES animes (id) ON DELETE CASCADE,
-			UNIQUE (user_id, anime_id)
+			UNIQUE (user_id, shiki_id)
 		);
 	`, tableName)
 
@@ -56,7 +55,7 @@ func CreateTable(ctx context.Context, db *sql.DB) error {
 	}
 
 	_, err = db.ExecContext(ctx,
-		"CREATE INDEX IF NOT EXISTS idx_anime_id ON subscriptions (anime_id);")
+		"CREATE INDEX IF NOT EXISTS idx_shiki_id ON subscriptions (shiki_id);")
 	if err != nil {
 		logger.Fatal("Failed to index anime id column", "error", err)
 		return fmt.Errorf("Failed to index anime id column: %w", err)
@@ -71,9 +70,9 @@ func Add(ctx context.Context, db *sql.DB, s Subscription) error {
 
 	// Define the SQL query to insert a new subscription record
 	query := `
-        INSERT INTO subscriptions (user_id, anime_id, last_episode_notified)
+        INSERT INTO subscriptions (user_id, shiki_id, last_episode_notified)
         VALUES ($1, $2, $3)
-        ON CONFLICT (user_id, anime_id) DO NOTHING;  -- Avoid duplicate subscriptions for the same user and anime
+        ON CONFLICT (user_id, shiki_id) DO NOTHING;  -- Avoid duplicate subscriptions for the same user and anime
     `
 
 	// Execute the query with the provided Subscription data
@@ -108,8 +107,8 @@ func GetByUserID(ctx context.Context,
 }
 
 func GetByAnimeID(ctx context.Context,
-	db *sql.DB, anime_id int) (*Subscription, error) {
-	return get(ctx, db, "anime_id", anime_id)
+	db *sql.DB, shiki_id int) (*Subscription, error) {
+	return get(ctx, db, "shiki_id", shiki_id)
 }
 
 func Remove(ctx context.Context, db *sql.DB, id int) error {
