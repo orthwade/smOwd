@@ -297,6 +297,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 
 			tgMsg := tgbotapi.NewMessage(int64(chatID), tgMsgText)
 			tgMsg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(keyboard...)
+			tgMsg.DisableWebPagePreview = true
 			bot.Send(tgMsg)
 
 			*updateMode = handleUpdateModeSubscribe
