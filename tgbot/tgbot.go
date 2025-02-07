@@ -254,24 +254,40 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 			bot.Send(tgbotapi.NewMessage(int64(chatID), "Enter the name of the anime"))
 			*updateMode = handleUpdateModeSearch
 		} else if messageText == "subscriptions" {
-			// sliceSubscriptions := subscriptions.FindAll(ctx, db, user.TelegramID)
+			sliceSubscriptions := subscriptions.FindAll(ctx, db, user.TelegramID)
 
-			// if sliceSubscriptions == nil {
-			// 	logger.Error("Error getting subscriptions from DB",
-			// 		"Telegram ID", telegramID)
-			// } else if len(sliceSubscriptions) == 0 {
-			// 	bot.Send(tgbotapi.NewMessage(int64(user.ChatID),
-			// 		"You have no subscriptions"))
-			// } else {
-			// 	var outputMsgText string
+			if sliceSubscriptions == nil {
+				logger.Error("Error getting subscriptions from DB",
+					"Telegram ID", telegramID)
+			} else if len(sliceSubscriptions) == 0 {
+				bot.Send(tgbotapi.NewMessage(int64(user.ChatID),
+					"You have no subscriptions"))
+			} else {
+				outputMsgText := "You are subscribed to these animes:\n\n"
 
-			// 	for i, s : range sliceSubscriptions {
-			// 		animes.SearchAnimeByName()
-			// 		line := strconv.Itoa(i + 1) + s.
-			// 	}
-			// }
-			// *updateMode = handleUpdateModeBasic
-			// bot.Send(generalMessage(chatID, user.Enabled))
+				var shikiIDs []string
+
+				for _, s := range sliceSubscriptions {
+					shikiIDs = append(shikiIDs, s.ShikiID)
+				}
+
+				sliceAnime, err := animes.SearchAnimeByShikiIDs(ctx, shikiIDs)
+
+				if err != nil {
+					logger.Error("Error searching animes by ids",
+						"IDs", shikiIDs,
+						"error", err)
+				} else {
+					for i, a := range sliceAnime {
+						line := strconv.Itoa(i+1) + "." + a.English + " / " + a.URL + "\n"
+						outputMsgText += line
+					}
+
+					bot.Send(tgbotapi.NewMessage(int64(chatID), outputMsgText))
+				}
+			}
+			*updateMode = handleUpdateModeBasic
+			bot.Send(generalMessage(chatID, user.Enabled))
 
 		}
 	} else if *updateMode == handleUpdateModeSearch {
