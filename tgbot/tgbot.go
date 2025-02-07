@@ -39,6 +39,8 @@ type sessionData struct {
 	handleUpdateModeField handleUpdateMode
 	sliceAnime            []animes.Anime
 	lastTgMsg             tgbotapi.MessageConfig
+	sliceSubscriptions    []subscriptions.Subscription
+	sliceAnimeName        []string
 }
 
 type userHandle struct {
@@ -301,14 +303,20 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 			if sliceSubscriptions == nil {
 				logger.Error("Error getting subscriptions from DB",
 					"Telegram ID", telegramID)
+
+				bot.Send(generalMessage(chatID, user.Enabled))
 			} else if len(sliceSubscriptions) == 0 {
 				bot.Send(tgbotapi.NewMessage(int64(user.ChatID),
 					"You have no subscriptions"))
+				bot.Send(generalMessage(chatID, user.Enabled))
+
 			} else {
 				var err error
 				for _, s := range sliceSubscriptions {
 					shikiIDs = append(shikiIDs, s.ShikiID)
 				}
+
+				session.sliceSubscriptions = sliceSubscriptions
 
 				session.sliceAnime, err = animes.SearchAnimeByShikiIDs(ctx, shikiIDs)
 
@@ -322,9 +330,11 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 						"IDs", shikiIDs,
 						"error", err)
 				} else {
+					session.sliceAnimeName = []string{}
 					for i, a := range session.sliceAnime {
 						line := strconv.Itoa(i+1) + ". " + a.English + " / " + a.URL + "\n"
 						outputMsgText += line
+						session.sliceAnimeName = append(session.sliceAnimeName, a.English)
 
 						buttons = append(buttons,
 							tgbotapi.NewInlineKeyboardButtonData(strconv.Itoa(i+1), strconv.Itoa(i)))
@@ -351,6 +361,8 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 					outputMsg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(keyboard...)
 
 					bot.Send(outputMsg)
+					*updateMode = handleUpdateModeRemove
+					session.lastTgMsg = outputMsg
 				}
 			}
 
@@ -479,6 +491,46 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 
 			bot.Send(generalMessage(chatID, user.Enabled))
 		}
+	} else if *updateMode == handleUpdateModeRemove {
+		if update.CallbackQuery == nil {
+			logger.Warn("No button pressed")
+
+			bot.Send(tgbotapi.NewMessage(int64(user.ChatID),
+				"Don't text, press a button"))
+
+			bot.Send(session.lastTgMsg)
+		} else if messageText == "cancel" {
+			*updateMode = handleUpdateModeBasic
+			bot.Send(generalMessage(chatID, user.Enabled))
+		} else {
+			i, _ := strconv.Atoi(messageText)
+
+			s := session.sliceSubscriptions[i]
+
+			err := subscriptions.Remove(ctx, db, s.ID)
+
+			if err != nil {
+				logger.Error("Error removing subscription",
+					"Telegram ID", s.TelegramID,
+					"Shiki ID", s.ShikiID,
+					"error", err)
+
+			} else {
+				logger.Info("Removed subscription",
+					"Telegram ID", s.TelegramID,
+					"Shiki ID", s.ShikiID)
+
+				outputMsg := tgbotapi.NewMessage(int64(chatID),
+					fmt.Sprintf("You are unsubscribed from %s",
+						session.sliceAnimeName[i]))
+
+				bot.Send(outputMsg)
+			}
+
+			*updateMode = handleUpdateModeBasic
+			bot.Send(generalMessage(chatID, user.Enabled))
+		}
+
 	}
 }
 
