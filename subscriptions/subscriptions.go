@@ -228,8 +228,8 @@ func SelectAll(ctx context.Context, db *sql.DB) []Subscription {
 	return subscriptions
 }
 
-func SetEnabled(ctx context.Context, db *sql.DB, id int, val bool) error {
-	return pql.SetField(ctx, db, tableName, "id", id, "enabled", val)
+func SetLastEpisode(ctx context.Context, db *sql.DB, id int, n int) error {
+	return pql.SetField(ctx, db, tableName, "id", id, "last_episode_notified", val)
 }
 
 func Remove(ctx context.Context, db *sql.DB, id int) error {

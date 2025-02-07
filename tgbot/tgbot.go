@@ -616,6 +616,8 @@ func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 
 						outputMsg := tgbotapi.NewMessage(int64(chatID),
 							fmt.Sprintf("%s \nEpisode &d released!", a.English, a.EpisodesAired))
+
+						bot.Send(outputMsg)
 					}
 
 				}
