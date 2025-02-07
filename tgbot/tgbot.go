@@ -40,6 +40,7 @@ type sessionData struct {
 	sliceAnime            []animes.Anime
 	lastTgMsg             tgbotapi.MessageConfig
 	sliceSubscriptions    []subscriptions.Subscription
+	test                  bool
 }
 
 type userHandle struct {
@@ -47,6 +48,13 @@ type userHandle struct {
 }
 
 var mapIdUserHandle = make(map[int]*userHandle)
+
+func clearSessionData(userID int) {
+	userHandlePtr := mapIdUserHandle[userID]
+	userHandlePtr.sessionDataField.lastTgMsg = tgbotapi.MessageConfig{}
+	userHandlePtr.sessionDataField.sliceAnime = []animes.Anime{}
+	userHandlePtr.sessionDataField.sliceSubscriptions = []subscriptions.Subscription{}
+}
 
 func checkAndAddUserToMap(ctx context.Context, userID int) {
 	logger := logs.DefaultFromCtx(ctx)
@@ -111,6 +119,9 @@ func generalMessage(chatID int, notificationsEnabled bool) *tgbotapi.MessageConf
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("Search anime by name", "search"),
 			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Test", "test"),
+			),
 		)
 	} else {
 		keyboard = tgbotapi.NewInlineKeyboardMarkup(
@@ -125,6 +136,9 @@ func generalMessage(chatID int, notificationsEnabled bool) *tgbotapi.MessageConf
 			),
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("Search anime by name", "search"),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Test", "test"),
 			),
 		)
 	}
@@ -215,6 +229,8 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 		*updateMode = handleUpdateModeBasic
 
 	} else if *updateMode == handleUpdateModeBasic {
+		clearSessionData(user.ID)
+
 		logger.Info("Update handle mode Basic", "tgname", user.UserName)
 
 		if messageText == "enable" {
@@ -381,6 +397,8 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 				}
 			}
 
+		} else if messageText == "test" {
+
 		}
 	} else if *updateMode == handleUpdateModeSearch {
 		var err error
@@ -475,7 +493,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 					ID:                  -1,
 					TelegramID:          user.TelegramID,
 					ShikiID:             anime.ShikiID,
-					LastEpisodeNotified: 0,
+					LastEpisodeNotified: anime.EpisodesAired,
 				}
 
 				logger.Info("Adding subscription to db",
@@ -549,6 +567,61 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 }
 
 func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
+	logger := logs.DefaultFromCtx(ctx)
+
+	sliceSubscriptions := subscriptions.SelectAll(ctx, db)
+
+	if len(sliceSubscriptions) == 0 {
+		logger.Info("No subscrtiptions in db")
+	} else {
+		for _, s := range sliceSubscriptions {
+			user := users.FindByTelegramID(ctx, db, s.TelegramID)
+
+			// userHandle, ok := mapIdUserHandle[user.ID]
+			// session := &userHandle.sessionDataField
+			// updateMode := &session.handleUpdateModeField
+
+			if ok {
+				a, err := animes.SearchAnimeByShikiIDs(ctx, []string{s.ShikiID})[0]
+
+				if err != nil {
+					logger.Error("Error searching anime by shiki ID",
+						"Shiki ID", s.ShikiID,
+						"error", err)
+
+				} else if a == nil {
+					logger.Error("Error: no anime found",
+						"Shiki ID", s.ShikiID)
+				} else {
+					logger.Info("Found anime", "Anime name", a.English)
+
+					if a.Status == "released" {
+						logger.Info("Anime status RELEASED!", "Anime name", a.English)
+						outputMsg := tgbotapi.NewMessage(int64(chatID),
+							fmt.Sprintf("Status Relased! $s\nYou are no loger subscribed to this anime", a.English))
+
+						err = subscriptions.Remove(ctx, db, s.ID)
+
+						if err != nil {
+							logger.Error("Error removing subscription",
+								"Telegram ID", s.TelegramID,
+								"Shiki ID", s.ShikiID)
+						} else {
+							bot.Send(outputMsg)
+						}
+					} else if a.EpisodesAired > s.LastEpisodeNotified {
+						logger.Info("New Episode!",
+							"Anime name", a.English,
+							"Episode", a.EpisodesAired)
+
+						outputMsg := tgbotapi.NewMessage(int64(chatID),
+							fmt.Sprintf("%s \nEpisode &d released!", a.English, a.EpisodesAired))
+					}
+
+				}
+			}
+		}
+	}
 
 }
 

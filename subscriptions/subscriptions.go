@@ -184,6 +184,54 @@ func FindAll(ctx context.Context, db *sql.DB, telegramID int) []Subscription {
 	return subscriptions
 }
 
+func SelectAll(ctx context.Context, db *sql.DB) []Subscription {
+	logger := logs.DefaultFromCtx(ctx)
+
+	query := fmt.Sprintf(`
+		SELECT id, telegram_id, shiki_id, last_episode_notified
+		FROM %s;
+	`, tableName)
+
+	var subscriptions []Subscription
+
+	rows, err := db.QueryContext(ctx, query)
+
+	defer rows.Close()
+
+	if err != nil {
+		logger.Error("Error searching subscriptions",
+			"error", err)
+
+		return nil
+	}
+
+	for rows.Next() {
+		var s Subscription
+
+		err := rows.Scan(
+			&s.ID,
+			&s.TelegramID,
+			&s.ShikiID,
+			&s.LastEpisodeNotified,
+		)
+
+		if err != nil {
+			logger.Error("Error processing row", "error", err)
+			return nil
+		}
+
+		subscriptions = append(subscriptions, s)
+	}
+
+	logger.Info("Subscriptions retrieved successfully")
+
+	return subscriptions
+}
+
+func SetEnabled(ctx context.Context, db *sql.DB, id int, val bool) error {
+	return pql.SetField(ctx, db, tableName, "id", id, "enabled", val)
+}
+
 func Remove(ctx context.Context, db *sql.DB, id int) error {
 	return pql.RemoveRecord(ctx, db, tableName, id)
 }
