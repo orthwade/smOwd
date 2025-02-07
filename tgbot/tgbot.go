@@ -291,6 +291,65 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 			*updateMode = handleUpdateModeBasic
 			bot.Send(generalMessage(chatID, user.Enabled))
 
+		} else if messageText == "remove" {
+			outputMsgText := "Choose an anime to unscubscribe:\n\n"
+
+			var shikiIDs []string
+
+			sliceSubscriptions := subscriptions.FindAll(ctx, db, user.TelegramID)
+
+			if sliceSubscriptions == nil {
+				logger.Error("Error getting subscriptions from DB",
+					"Telegram ID", telegramID)
+			} else if len(sliceSubscriptions) == 0 {
+				bot.Send(tgbotapi.NewMessage(int64(user.ChatID),
+					"You have no subscriptions"))
+			} else {
+				var err error
+				session.sliceAnime, err = animes.SearchAnimeByShikiIDs(ctx, shikiIDs)
+
+				col := 0
+
+				var buttons []tgbotapi.InlineKeyboardButton
+				var keyboard [][]tgbotapi.InlineKeyboardButton
+
+				if err != nil {
+					logger.Error("Error searching animes by ids",
+						"IDs", shikiIDs,
+						"error", err)
+				} else {
+					for i, a := range session.sliceAnime {
+						line := strconv.Itoa(i+1) + ". " + a.English + " / " + a.URL + "\n"
+						outputMsgText += line
+
+						buttons = append(buttons,
+							tgbotapi.NewInlineKeyboardButtonData(strconv.Itoa(i+1), strconv.Itoa(i)))
+
+						col++
+						if col > 4 {
+							col = 0
+							keyboard = append(keyboard, buttons)
+							buttons = []tgbotapi.InlineKeyboardButton{}
+						}
+					}
+					if len(buttons) > 0 {
+						keyboard = append(keyboard, buttons)
+					}
+
+					buttons = []tgbotapi.InlineKeyboardButton{}
+					buttons = append(buttons,
+						tgbotapi.NewInlineKeyboardButtonData("Cancel", "cancel"))
+
+					keyboard = append(keyboard, buttons)
+
+					outputMsg := tgbotapi.NewMessage(int64(chatID), outputMsgText)
+					outputMsg.DisableWebPagePreview = true
+					outputMsg.ReplyMarkup = keyboard
+
+					bot.Send(outputMsg)
+				}
+			}
+
 		}
 	} else if *updateMode == handleUpdateModeSearch {
 		var err error
