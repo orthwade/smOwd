@@ -40,7 +40,6 @@ type sessionData struct {
 	sliceAnime            []animes.Anime
 	lastTgMsg             tgbotapi.MessageConfig
 	sliceSubscriptions    []subscriptions.Subscription
-	sliceAnimeName        []string
 }
 
 type userHandle struct {
@@ -318,23 +317,39 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 
 				session.sliceSubscriptions = sliceSubscriptions
 
-				session.sliceAnime, err = animes.SearchAnimeByShikiIDs(ctx, shikiIDs)
+				sliceAnime, err := animes.SearchAnimeByShikiIDs(ctx, shikiIDs)
 
 				col := 0
 
 				var buttons []tgbotapi.InlineKeyboardButton
 				var keyboard [][]tgbotapi.InlineKeyboardButton
 
+				for i, s := range session.sliceSubscriptions {
+					found := false
+					for _, a := range sliceAnime {
+						if a.ShikiID == s.ShikiID {
+							found = true
+							session.sliceSubscriptions[i].Anime = &a
+						}
+					}
+					if !found {
+						logger.Fatal("Error: subscription anime mismatch")
+					}
+				}
+				session.sliceAnime = []animes.Anime{}
+
+				for _, s := range session.sliceSubscriptions {
+					session.sliceAnime = append(session.sliceAnime, *s.Anime)
+				}
+
 				if err != nil {
 					logger.Error("Error searching animes by ids",
 						"IDs", shikiIDs,
 						"error", err)
 				} else {
-					session.sliceAnimeName = []string{}
 					for i, a := range session.sliceAnime {
 						line := strconv.Itoa(i+1) + ". " + a.English + " / " + a.URL + "\n"
 						outputMsgText += line
-						session.sliceAnimeName = append(session.sliceAnimeName, a.English)
 
 						buttons = append(buttons,
 							tgbotapi.NewInlineKeyboardButtonData(strconv.Itoa(i+1), strconv.Itoa(i)))
@@ -521,8 +536,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 					"Shiki ID", s.ShikiID)
 
 				outputMsg := tgbotapi.NewMessage(int64(chatID),
-					fmt.Sprintf("You are unsubscribed from %s",
-						session.sliceAnimeName[i]))
+					fmt.Sprintf("You are unsubscribed from %s", s.Anime.English))
 
 				bot.Send(outputMsg)
 			}

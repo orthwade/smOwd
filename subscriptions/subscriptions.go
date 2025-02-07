@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	// "smOwd/animes"
+	"smOwd/animes"
 	"smOwd/logs"
 	"smOwd/pql"
 	// "smOwd/users"
@@ -18,6 +18,7 @@ type Subscription struct {
 	TelegramID          int
 	ShikiID             string
 	LastEpisodeNotified int
+	Anime               *animes.Anime
 }
 
 func CheckTable(ctx context.Context, db *sql.DB) (bool, error) {
