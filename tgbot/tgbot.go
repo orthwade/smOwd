@@ -253,6 +253,26 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 		} else if messageText == "search" {
 			bot.Send(tgbotapi.NewMessage(int64(chatID), "Enter the name of the anime"))
 			*updateMode = handleUpdateModeSearch
+		} else if messageText == "subscriptions" {
+			// sliceSubscriptions := subscriptions.FindAll(ctx, db, user.TelegramID)
+
+			// if sliceSubscriptions == nil {
+			// 	logger.Error("Error getting subscriptions from DB",
+			// 		"Telegram ID", telegramID)
+			// } else if len(sliceSubscriptions) == 0 {
+			// 	bot.Send(tgbotapi.NewMessage(int64(user.ChatID),
+			// 		"You have no subscriptions"))
+			// } else {
+			// 	var outputMsgText string
+
+			// 	for i, s : range sliceSubscriptions {
+			// 		animes.SearchAnimeByName()
+			// 		line := strconv.Itoa(i + 1) + s.
+			// 	}
+			// }
+			// *updateMode = handleUpdateModeBasic
+			// bot.Send(generalMessage(chatID, user.Enabled))
+
 		}
 	} else if *updateMode == handleUpdateModeSearch {
 		var err error

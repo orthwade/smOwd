@@ -11,6 +11,7 @@ import (
 	"smOwd/pql"
 	"smOwd/subscriptions"
 
+	// "smOwd/animes"
 	"smOwd/tgbot"
 	"smOwd/users"
 	"time"

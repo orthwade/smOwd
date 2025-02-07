@@ -8,13 +8,16 @@ import (
 	"io/ioutil"
 	"net/http"
 	"smOwd/logs"
+
+	"strings"
 	"time"
 )
 
 const url = "https://shikimori.one/api/graphql"
 
 type GraphQLRequest struct {
-	Query string `json:"query"`
+	Query     string                 `json:"query"`
+	Variables map[string]interface{} `json:"variables"`
 }
 
 var client = &http.Client{Timeout: 10 * time.Second}
@@ -34,6 +37,9 @@ type AnimeResponse struct {
 	Data struct {
 		Animes []Anime `json:"animes"`
 	} `json:"data"`
+	Errors []struct {
+		Message string `json: "message"`
+	} `json:"errors"`
 }
 
 func SearchAnimeByName(ctx context.Context, name string) ([]Anime, error) {
@@ -89,6 +95,82 @@ func SearchAnimeByName(ctx context.Context, name string) ([]Anime, error) {
 
 	if err != nil {
 		logger.Fatal("Failed to unmarshall", "error", err)
+	}
+
+	if len(animeResponse.Errors) > 0 {
+		for _, Error := range animeResponse.Errors {
+			logger.Error("GraphQL error", "message", Error.Message)
+		}
+	}
+
+	return animeResponse.Data.Animes, nil
+}
+
+func SearchAnimeByShikiIDs(ctx context.Context, shikiIDs []string) ([]Anime, error) {
+	logger := logs.DefaultFromCtx(ctx)
+
+	idsString := strings.Join(shikiIDs, ",")
+
+	query := ` query($ids: String!) {
+		animes(ids: $ids) {
+			id       
+			malId    
+			english   
+			japanese 
+			status
+			episodes 
+			episodesAired
+			url
+		}
+	}`
+
+	reqBody := GraphQLRequest{
+		Query: query,
+		Variables: map[string]interface{}{
+			"ids": idsString,
+		}}
+
+	reqBodyJson, err := json.Marshal(reqBody)
+
+	if err != nil {
+		logger.Error("Failed to marshall query", "error", err)
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url,
+		bytes.NewBuffer(reqBodyJson))
+
+	req.Header.Set("Content-Type", "application/json")
+
+	if err != nil {
+		logger.Fatal("Failed to create requet", "error", err)
+	}
+
+	resp, err := client.Do(req)
+
+	if err != nil {
+		logger.Fatal("Failed request", "error", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+
+	if err != nil {
+		logger.Fatal("Failed to read response", "error", err)
+	}
+
+	var animeResponse AnimeResponse
+
+	err = json.Unmarshal(respBody, &animeResponse)
+
+	if err != nil {
+		logger.Fatal("Failed to unmarshall", "error", err)
+	}
+
+	if len(animeResponse.Errors) > 0 {
+		for _, Error := range animeResponse.Errors {
+			logger.Error("GraphQL error", "message", Error.Message)
+		}
 	}
 
 	return animeResponse.Data.Animes, nil

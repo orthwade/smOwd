@@ -110,6 +110,7 @@ func Find(ctx context.Context, db *sql.DB, telegramID int, shikiID string) *Subs
 
 	var s Subscription
 	err := db.QueryRowContext(ctx, query, telegramID, shikiID).Scan(
+		&s.ID,
 		&s.TelegramID,
 		&s.ShikiID,
 		&s.LastEpisodeNotified,
@@ -133,6 +134,53 @@ func Find(ctx context.Context, db *sql.DB, telegramID int, shikiID string) *Subs
 		"Shiki ID", shikiID)
 
 	return &s
+}
+
+func FindAll(ctx context.Context, db *sql.DB, telegramID int) []Subscription {
+	logger := logs.DefaultFromCtx(ctx)
+
+	query := fmt.Sprintf(`
+		SELECT id, telegram_id, shiki_id, last_episode_notified
+		FROM %s
+		WHERE telegram_id = $1;
+	`, tableName)
+
+	var subscriptions []Subscription
+
+	rows, err := db.QueryContext(ctx, query, telegramID)
+
+	defer rows.Close()
+
+	if err != nil {
+		logger.Error("Error searching subscriptions",
+			"Telegram ID", telegramID,
+			"error", err)
+
+		return nil
+	}
+
+	for rows.Next() {
+		var s Subscription
+
+		err := rows.Scan(
+			&s.ID,
+			&s.TelegramID,
+			&s.ShikiID,
+			&s.LastEpisodeNotified,
+		)
+
+		if err != nil {
+			logger.Error("Error processing row", "error", err)
+			return nil
+		}
+
+		subscriptions = append(subscriptions, s)
+	}
+
+	logger.Info("Subscriptions retrieved successfully",
+		"Telegram ID", telegramID)
+
+	return subscriptions
 }
 
 func Remove(ctx context.Context, db *sql.DB, id int) error {
