@@ -282,8 +282,10 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 						line := strconv.Itoa(i+1) + "." + a.English + " / " + a.URL + "\n"
 						outputMsgText += line
 					}
+					outputMsg := tgbotapi.NewMessage(int64(chatID), outputMsgText)
+					outputMsg.DisableWebPagePreview = true
 
-					bot.Send(tgbotapi.NewMessage(int64(chatID), outputMsgText))
+					bot.Send(outputMsg)
 				}
 			}
 			*updateMode = handleUpdateModeBasic
