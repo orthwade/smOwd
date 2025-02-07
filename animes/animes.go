@@ -111,8 +111,8 @@ func SearchAnimeByShikiIDs(ctx context.Context, shikiIDs []string) ([]Anime, err
 
 	idsString := strings.Join(shikiIDs, ",")
 
-	query := ` query($ids: String!) {
-		animes(ids: $ids) {
+	query := fmt.Sprintf(` query($ids: String!) {
+		animes(ids: $ids, limit: %d) {
 			id       
 			malId    
 			english   
@@ -122,7 +122,7 @@ func SearchAnimeByShikiIDs(ctx context.Context, shikiIDs []string) ([]Anime, err
 			episodesAired
 			url
 		}
-	}`
+	}`, len(shikiIDs))
 
 	reqBody := GraphQLRequest{
 		Query: query,

@@ -279,7 +279,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 						"error", err)
 				} else {
 					for i, a := range sliceAnime {
-						line := strconv.Itoa(i+1) + "." + a.English + " / " + a.URL + "\n"
+						line := strconv.Itoa(i+1) + ". " + a.English + " / " + a.URL + "\n"
 						outputMsgText += line
 					}
 					outputMsg := tgbotapi.NewMessage(int64(chatID), outputMsgText)
@@ -312,17 +312,24 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 
 			for i, anime := range session.sliceAnime {
 				animeStr := strconv.Itoa(i+1) + ". " + anime.English + " / " + anime.URL + "\n"
-				buttons = append(buttons,
-					tgbotapi.NewInlineKeyboardButtonData(strconv.Itoa(i+1), strconv.Itoa(i)))
+
+				if anime.Status == "released" {
+					animeStr += " / RELEASED!\n\n"
+				} else {
+					animeStr += "\n"
+
+					buttons = append(buttons,
+						tgbotapi.NewInlineKeyboardButtonData(strconv.Itoa(i+1), strconv.Itoa(i)))
+
+					col++
+					if col > 4 {
+						col = 0
+						keyboard = append(keyboard, buttons)
+						buttons = []tgbotapi.InlineKeyboardButton{}
+					}
+				}
 
 				tgMsgText += animeStr
-
-				col++
-				if col > 4 {
-					col = 0
-					keyboard = append(keyboard, buttons)
-					buttons = []tgbotapi.InlineKeyboardButton{}
-				}
 			}
 			if len(buttons) > 0 {
 				keyboard = append(keyboard, buttons)
