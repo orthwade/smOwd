@@ -618,6 +618,8 @@ func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 							fmt.Sprintf("%s \nEpisode &d released!", a.English, a.EpisodesAired))
 
 						bot.Send(outputMsg)
+
+						subscriptions.SetLastEpisode(ctx, db, s.ID, a.EpisodesAired)
 					}
 
 				}
