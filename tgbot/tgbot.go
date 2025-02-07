@@ -306,6 +306,10 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 					"You have no subscriptions"))
 			} else {
 				var err error
+				for _, s := range sliceSubscriptions {
+					shikiIDs = append(shikiIDs, s.ShikiID)
+				}
+
 				session.sliceAnime, err = animes.SearchAnimeByShikiIDs(ctx, shikiIDs)
 
 				col := 0
@@ -344,7 +348,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 
 					outputMsg := tgbotapi.NewMessage(int64(chatID), outputMsgText)
 					outputMsg.DisableWebPagePreview = true
-					outputMsg.ReplyMarkup = keyboard
+					outputMsg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(keyboard...)
 
 					bot.Send(outputMsg)
 				}
