@@ -32,6 +32,13 @@ func ConnectToDatabasePostgres(ctx context.Context) *sql.DB {
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
 		dbSuperuser, dbSuperuserPassword, dbHost, dbPort, dbDefaultName)
 
+	logger.Info("Db Connection",
+		"Superuser", dbSuperuser,
+		"Superuser PW", dbSuperuserPassword,
+		"Host", dbHost,
+		"Port", dbPort,
+		"Default name", dbDefaultName)
+
 	db, err := sql.Open(dbDefaultName, connStr)
 
 	if err != nil {
