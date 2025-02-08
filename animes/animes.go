@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"smOwd/logs"
 
 	"strings"
@@ -52,12 +53,19 @@ func splitWords(input string) []string {
 func containsAllWords(input, sentence string) bool {
 	words := splitWords(input)
 
-	// Convert both the sentence and the words to lowercase for case-insensitive comparison
+	// Normalize the sentence to lowercase for case-insensitive matching
 	sentence = strings.ToLower(sentence)
 
-	// Check if each word in the input is present in the sentence (case-insensitive)
+	// Loop through each word and use regex for whole-word matching
 	for _, word := range words {
-		if !strings.Contains(sentence, strings.ToLower(word)) {
+		// Build a regex pattern to match the whole word
+		pattern := fmt.Sprintf(`\b%s\b`, regexp.QuoteMeta(strings.ToLower(word)))
+
+		// Compile the regex
+		re := regexp.MustCompile(pattern)
+
+		// Check if the word is in the sentence
+		if !re.MatchString(sentence) {
 			return false
 		}
 	}
