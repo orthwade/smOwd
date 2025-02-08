@@ -1,34 +1,23 @@
 #!/bin/bash
-set -e
 
-# Wait for PostgreSQL to be ready
-until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER"; do
-  echo "Waiting for postgres to be ready..."
-  sleep 2
-done
-
-# Create the database if it doesn't exist
-echo "Checking if database ${DB_NAME} exists"
-DB_EXISTS=$(psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'")
-if [ "$DB_EXISTS" != "1" ]; then
+# Check if the database already exists
+echo "Checking if database exists"
+psql -U ${DB_SUPERUSER} -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1 || {
+  # If database does not exist, create it
   echo "Creating database ${DB_NAME}"
-  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-      CREATE DATABASE ${DB_NAME};
-      GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_USER};
-  EOSQL
-else
-  echo "Database ${DB_NAME} already exists"
-fi
+  psql -U ${DB_SUPERUSER} -d postgres -c "CREATE DATABASE ${DB_NAME}"
+}
 
 # Create the user if it doesn't exist
-echo "Checking if user ${DB_USER} exists"
-USER_EXISTS=$(psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -tAc "SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}'")
-if [ "$USER_EXISTS" != "1" ]; then
+echo "Checking if user exists"
+psql -U ${DB_SUPERUSER} -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}'" | grep -q 1 || {
   echo "Creating user ${DB_USER}"
-  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-      CREATE USER ${DB_USER} WITH PASSWORD '${DB_PASSWORD}';
-      GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_USER};
-  EOSQL
-else
-  echo "User ${DB_USER} already exists"
-fi
+  psql -U ${DB_SUPERUSER} -d postgres -c "CREATE USER ${DB_USER} WITH PASSWORD '${DB_PASSWORD}'"
+  psql -U ${DB_SUPERUSER} -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_USER}"
+}
+
+# Optionally, you can run additional SQL queries if required
+# You can put your SQL file in here or run any needed query
+# Example (uncomment the following lines to run init.sql.template or other SQL commands):
+
+# psql -U ${DB_SUPERUSER} -d ${DB_NAME} -f /docker-entrypoint-initdb.d/init.sql.template
