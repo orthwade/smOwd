@@ -21,3 +21,11 @@ psql -U ${DB_SUPERUSER} -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='
   psql -U ${DB_SUPERUSER} -d postgres -c "CREATE USER ${DB_USER} WITH PASSWORD '${DB_PASSWORD}'"
   psql -U ${DB_SUPERUSER} -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_USER}"
 }
+
+# Grant user permission to access the public schema and create tables
+echo "Granting permissions to user ${DB_USER} on public schema"
+psql -U ${DB_SUPERUSER} -d ${DB_NAME} -c "GRANT ALL PRIVILEGES ON SCHEMA public TO ${DB_USER}"
+psql -U ${DB_SUPERUSER} -d ${DB_NAME} -c "GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_USER}"
+
+# You may also want to grant additional privileges (if needed)
+# psql -U ${DB_SUPERUSER} -d ${DB_NAME} -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${DB_USER}"
