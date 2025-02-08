@@ -718,7 +718,7 @@ func StartBotAndHandleUpdates(ctx context.Context, cancel context.CancelFunc,
 
 	// Configure the update channel (long polling)
 	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
+	u.Timeout = 160
 
 	// Get updates (messages and callback queries) from Telegram
 	updates, err := bot.GetUpdatesChan(u)
@@ -740,7 +740,7 @@ func StartBotAndHandleUpdates(ctx context.Context, cancel context.CancelFunc,
 
 	// Start a goroutine to handle periodic user processing every second
 	go func() {
-		ticker := time.NewTicker(1 * time.Second)
+		ticker := time.NewTicker(15 * time.Minute)
 		defer ticker.Stop()
 		for {
 			select {
