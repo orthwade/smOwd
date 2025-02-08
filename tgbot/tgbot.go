@@ -298,6 +298,18 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 					for i, a := range sliceAnime {
 						line := strconv.Itoa(i+1) + ". " + a.English + " / " + a.URL + "\n"
 						outputMsgText += line
+						outputMsgText += fmt.Sprintf("Last episode aired: %d\n", a.EpisodesAired)
+
+						var lastNotification int
+
+						for _, s := range sliceSubscriptions {
+							if user.TelegramID == s.TelegramID && s.ShikiID == a.ShikiID {
+								lastNotification = s.LastEpisodeNotified
+								break
+							}
+						}
+
+						outputMsgText += fmt.Sprintf("Last episode notified of: %d\n\n", lastNotification)
 					}
 					outputMsg := tgbotapi.NewMessage(int64(chatID), outputMsgText)
 					outputMsg.DisableWebPagePreview = true
