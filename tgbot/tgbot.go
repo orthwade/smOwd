@@ -160,7 +160,6 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 	}
 
 	var user *users.User
-	var telegramID int
 	var chatID int
 	var tgbotUser *tgbotapi.User
 
@@ -171,7 +170,6 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 
 		tgbotUser = update.Message.From
 
-		telegramID = update.Message.From.ID
 		chatID = int(update.Message.Chat.ID)
 		messageText = misc.RemoveFirstCharIfPresent(update.Message.Text, '/')
 
@@ -180,7 +178,6 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 	} else if update.CallbackQuery != nil { // Handle inline button callback queries
 		tgbotUser = update.CallbackQuery.Message.From
 
-		telegramID = update.CallbackQuery.From.ID
 		chatID = int(update.CallbackQuery.Message.Chat.ID)
 		messageText = update.CallbackQuery.Data
 		skip = false
@@ -330,7 +327,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 
 			if sliceSubscriptions == nil {
 				logger.Error("Error getting subscriptions from DB",
-					"Telegram ID", telegramID)
+					"Telegram ID", user.TelegramID)
 
 				bot.Send(generalMessage(chatID, user.Enabled))
 			} else if len(sliceSubscriptions) == 0 {
