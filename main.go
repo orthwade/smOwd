@@ -81,6 +81,8 @@ func main() {
 
 	LoadEnv(ctx)
 
+	pql.WaitPsql(ctx)
+
 	postgresDb := pql.ConnectToDatabasePostgres(ctx)
 
 	db := pql.ConnectToDatabaseSubscriptions(ctx, postgresDb)

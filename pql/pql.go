@@ -40,6 +40,7 @@ func WaitPsql(ctx context.Context) error {
 		if i < maxRetries-1 {
 			logger.Warn("Retrying",
 				"Timeout", timeout)
+			time.Sleep(timeout)
 		} else {
 			logger.Fatal("Max retries. Connection Failed")
 			return fmt.Errorf("Max retries. Connection Failed")
