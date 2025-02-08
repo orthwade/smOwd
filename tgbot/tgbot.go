@@ -424,6 +424,18 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 				"error", err)
 
 			*updateMode = handleUpdateModeBasic
+		} else if len(session.sliceAnime) == 0 {
+
+			logger.Warn("No animes found",
+				"Anime name", messageText)
+			tgMsg := tgbotapi.NewMessage(int64(chatID), "No animes found")
+
+			bot.Send(tgMsg)
+
+			bot.Send(generalMessage(chatID, user.Enabled))
+
+			*updateMode = handleUpdateModeBasic
+
 		} else {
 			var keyboard [][]tgbotapi.InlineKeyboardButton
 			var buttons []tgbotapi.InlineKeyboardButton
