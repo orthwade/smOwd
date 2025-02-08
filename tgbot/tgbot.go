@@ -439,7 +439,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 			var tgMsgText string
 			var tgMsg tgbotapi.MessageConfig
 
-			multipleMessages := false
+			multipleMessages := true
 
 			for i, anime := range session.sliceAnime {
 				animeStr := strconv.Itoa(i+1) + ". " + anime.English + " / " + anime.URL + "\n"
