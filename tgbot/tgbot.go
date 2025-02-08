@@ -564,7 +564,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 	}
 }
 
-var testReleased = true
+var testReleased = false
 var testNewEpisode = false
 
 func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
@@ -628,12 +628,14 @@ func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 						"Episode", a.EpisodesAired)
 
 					outputMsg := tgbotapi.NewMessage(int64(chatID),
-						fmt.Sprintf("%s \nEpisode %d released!", a.English, a.EpisodesAired))
+						fmt.Sprintf("%s\n%s \nNew Episode %d!",
+							a.English, a.URL, a.EpisodesAired))
+
 					outputMsg.DisableWebPagePreview = true
 
 					bot.Send(outputMsg)
 
-					// subscriptions.SetLastEpisode(ctx, db, s.ID, a.EpisodesAired)
+					subscriptions.SetLastEpisode(ctx, db, s.ID, a.EpisodesAired)
 				} else if testReleased {
 					logger.Info("Anime status RELEASED! ----TEST----", "Anime name", a.English)
 					outputMsg := tgbotapi.NewMessage(int64(chatID),
@@ -668,7 +670,8 @@ func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 						"Episode", a.EpisodesAired)
 
 					outputMsg := tgbotapi.NewMessage(int64(chatID),
-						fmt.Sprintf("%s \nEpisode %d released!", a.English, a.EpisodesAired))
+						fmt.Sprintf("%s\n%s \nNew Episode %d!",
+							a.English, a.URL, a.EpisodesAired))
 					outputMsg.DisableWebPagePreview = true
 
 					bot.Send(outputMsg)
@@ -737,7 +740,7 @@ func StartBotAndHandleUpdates(ctx context.Context, cancel context.CancelFunc,
 
 	// Start a goroutine to handle periodic user processing every second
 	go func() {
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
