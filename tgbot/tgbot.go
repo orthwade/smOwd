@@ -277,10 +277,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 		} else if messageText == "subscriptions" {
 			sliceSubscriptions := subscriptions.FindAll(ctx, db, user.TelegramID)
 
-			if sliceSubscriptions == nil {
-				logger.Error("Error getting subscriptions from DB",
-					"Telegram ID", telegramID)
-			} else if len(sliceSubscriptions) == 0 {
+			if len(sliceSubscriptions) == 0 {
 				bot.Send(tgbotapi.NewMessage(int64(user.ChatID),
 					"You have no subscriptions"))
 			} else {
