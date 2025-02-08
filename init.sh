@@ -1,8 +1,10 @@
 #!/bin/bash
 
+# Debugging: Print environment variables to check if they are being loaded correctly
 echo "DB_SUPERUSER=${DB_SUPERUSER}"
 echo "DB_NAME=${DB_NAME}"
 echo "DB_USER=${DB_USER}"
+echo "DB_PASSWORD=${DB_PASSWORD}"
 
 # Check if the database exists
 echo "Checking if database exists"
