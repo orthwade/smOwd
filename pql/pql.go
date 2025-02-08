@@ -4,12 +4,51 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net"
 	"os"
 	"smOwd/logs"
 	"strings"
+	"time"
 
 	_ "github.com/lib/pq"
 )
+
+func WaitPsql(ctx context.Context) error {
+	logger := logs.DefaultFromCtx(ctx)
+
+	dbHost := os.Getenv("DB_HOST")
+	dbPort := os.Getenv("DB_PORT")
+
+	address := dbHost + ":" + dbPort
+
+	maxRetries := 20
+
+	timeout := 3 * time.Second
+
+	for i := 0; i < maxRetries; i++ {
+		_, err := net.Dial("tcp", address)
+
+		if err == nil {
+			logger.Info("PSQL is running")
+			return nil
+		}
+
+		logger.Warn("Failed connection to PSQL",
+			"Attempt", i+1,
+			"errro", err)
+
+		if i < maxRetries-1 {
+			logger.Warn("Retrying",
+				"Timeout", timeout)
+		} else {
+			logger.Fatal("Max retries. Connection Failed")
+			return fmt.Errorf("Max retries. Connection Failed")
+		}
+	}
+
+	return nil
+
+}
 
 // ConnectToDB opens a connection to the PostgreSQL database.
 func ConnectToDB(connStr string) (*sql.DB, error) {
