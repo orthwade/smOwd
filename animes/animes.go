@@ -42,11 +42,33 @@ type AnimeResponse struct {
 	} `json:"errors"`
 }
 
+func splitWords(input string) []string {
+	// Replace underscores with spaces and then split by spaces
+	input = strings.ReplaceAll(input, "_", " ")
+	words := strings.Fields(input)
+	return words
+}
+
+func containsAllWords(input, sentence string) bool {
+	words := splitWords(input)
+
+	// Convert both the sentence and the words to lowercase for case-insensitive comparison
+	sentence = strings.ToLower(sentence)
+
+	// Check if each word in the input is present in the sentence (case-insensitive)
+	for _, word := range words {
+		if !strings.Contains(sentence, strings.ToLower(word)) {
+			return false
+		}
+	}
+	return true
+}
+
 func SearchAnimeByName(ctx context.Context, name string) ([]Anime, error) {
 	logger := logs.DefaultFromCtx(ctx)
 
 	query := fmt.Sprintf(` query{
-		animes(search: "%s", limit: 50) {
+		animes(search: "%s", limit: 500) {
 			id       
 			malId    
 			english   
@@ -103,7 +125,15 @@ func SearchAnimeByName(ctx context.Context, name string) ([]Anime, error) {
 		}
 	}
 
-	return animeResponse.Data.Animes, nil
+	var result []Anime
+
+	for _, a := range animeResponse.Data.Animes {
+		if containsAllWords(name, a.English) {
+			result = append(result, a)
+		}
+	}
+
+	return result, nil
 }
 
 func SearchAnimeByShikiIDs(ctx context.Context, shikiIDs []string) ([]Anime, error) {
