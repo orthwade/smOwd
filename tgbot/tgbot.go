@@ -119,9 +119,9 @@ func generalMessage(chatID int, notificationsEnabled bool) *tgbotapi.MessageConf
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("Search anime by name", "search"),
 			),
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Test", "test"),
-			),
+			// tgbotapi.NewInlineKeyboardRow(
+			// 	tgbotapi.NewInlineKeyboardButtonData("Test", "test"),
+			// ),
 		)
 	} else {
 		keyboard = tgbotapi.NewInlineKeyboardMarkup(
@@ -137,9 +137,9 @@ func generalMessage(chatID int, notificationsEnabled bool) *tgbotapi.MessageConf
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("Search anime by name", "search"),
 			),
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Test", "test"),
-			),
+			// tgbotapi.NewInlineKeyboardRow(
+			// 	tgbotapi.NewInlineKeyboardButtonData("Test", "test"),
+			// ),
 		)
 	}
 
@@ -397,8 +397,6 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 				}
 			}
 
-		} else if messageText == "test" {
-
 		}
 	} else if *updateMode == handleUpdateModeSearch {
 		var err error
@@ -566,6 +564,9 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 	}
 }
 
+var testReleased = true
+var testNewEpisode = false
+
 func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 	logger := logs.DefaultFromCtx(ctx)
 
@@ -577,52 +578,114 @@ func processUsers(ctx context.Context, db *sql.DB, bot *tgbotapi.BotAPI) {
 		for _, s := range sliceSubscriptions {
 			user := users.FindByTelegramID(ctx, db, s.TelegramID)
 
+			if !user.Enabled {
+				continue
+			}
+
 			// userHandle, ok := mapIdUserHandle[user.ID]
 			// session := &userHandle.sessionDataField
 			// updateMode := &session.handleUpdateModeField
 
-			if ok {
-				a, err := animes.SearchAnimeByShikiIDs(ctx, []string{s.ShikiID})[0]
+			sliceAnime, err := animes.SearchAnimeByShikiIDs(ctx, []string{s.ShikiID})
 
-				if err != nil {
-					logger.Error("Error searching anime by shiki ID",
-						"Shiki ID", s.ShikiID,
-						"error", err)
+			var a animes.Anime
 
-				} else if a == nil {
-					logger.Error("Error: no anime found",
-						"Shiki ID", s.ShikiID)
-				} else {
-					logger.Info("Found anime", "Anime name", a.English)
+			if err != nil {
+				logger.Error("Error searching anime by shiki ID",
+					"Shiki ID", s.ShikiID,
+					"error", err)
 
-					if a.Status == "released" {
-						logger.Info("Anime status RELEASED!", "Anime name", a.English)
-						outputMsg := tgbotapi.NewMessage(int64(chatID),
-							fmt.Sprintf("Status Relased! $s\nYou are no loger subscribed to this anime", a.English))
+			} else if sliceAnime == nil {
+				logger.Error("Error: no anime found",
+					"Shiki ID", s.ShikiID)
+			} else {
+				a = sliceAnime[0]
+				logger.Info("Found anime", "Anime name", a.English)
 
-						err = subscriptions.Remove(ctx, db, s.ID)
+				chatID := user.ChatID
 
-						if err != nil {
-							logger.Error("Error removing subscription",
-								"Telegram ID", s.TelegramID,
-								"Shiki ID", s.ShikiID)
-						} else {
-							bot.Send(outputMsg)
-						}
-					} else if a.EpisodesAired > s.LastEpisodeNotified {
-						logger.Info("New Episode!",
-							"Anime name", a.English,
-							"Episode", a.EpisodesAired)
+				if a.Status == "released" {
+					logger.Info("Anime status RELEASED!", "Anime name", a.English)
+					outputMsg := tgbotapi.NewMessage(int64(chatID),
+						fmt.Sprintf("%s\n%s \nStatus Released!"+
+							"\nYou are no longer subscribed to this anime",
+							a.English, a.URL))
 
-						outputMsg := tgbotapi.NewMessage(int64(chatID),
-							fmt.Sprintf("%s \nEpisode &d released!", a.English, a.EpisodesAired))
+					outputMsg.DisableWebPagePreview = true
 
+					err = subscriptions.Remove(ctx, db, s.ID)
+
+					if err != nil {
+						logger.Error("Error removing subscription",
+							"Telegram ID", s.TelegramID,
+							"Shiki ID", s.ShikiID)
+					} else {
 						bot.Send(outputMsg)
+					}
+				} else if a.EpisodesAired > s.LastEpisodeNotified {
+					logger.Info("New Episode!",
+						"Anime name", a.English,
+						"Episode", a.EpisodesAired)
 
-						subscriptions.SetLastEpisode(ctx, db, s.ID, a.EpisodesAired)
+					outputMsg := tgbotapi.NewMessage(int64(chatID),
+						fmt.Sprintf("%s \nEpisode %d released!", a.English, a.EpisodesAired))
+					outputMsg.DisableWebPagePreview = true
+
+					bot.Send(outputMsg)
+
+					// subscriptions.SetLastEpisode(ctx, db, s.ID, a.EpisodesAired)
+				} else if testReleased {
+					logger.Info("Anime status RELEASED! ----TEST----", "Anime name", a.English)
+					outputMsg := tgbotapi.NewMessage(int64(chatID),
+						fmt.Sprintf("%s\n%s \nStatus Released!"+
+							"\nYou are no longer subscribed to this anime",
+							a.English, a.URL))
+					outputMsg.DisableWebPagePreview = true
+
+					// err = subscriptions.Remove(ctx, db, s.ID)
+
+					if err != nil {
+						logger.Error("Error removing subscription ----TEST----",
+							"Telegram ID", s.TelegramID,
+							"Shiki ID", s.ShikiID)
+					} else {
+						bot.Send(outputMsg)
 					}
 
+					ss := subscriptions.FindAll(ctx, db, user.TelegramID)
+
+					for _, s := range ss {
+						logger.Info("Subscrtiption",
+							"Telegram ID", s.TelegramID,
+							"Shiki ID", s.ShikiID)
+					}
+
+					testReleased = false
+
+				} else if testNewEpisode {
+					logger.Info("New Episode! ----TEST----",
+						"Anime name", a.English,
+						"Episode", a.EpisodesAired)
+
+					outputMsg := tgbotapi.NewMessage(int64(chatID),
+						fmt.Sprintf("%s \nEpisode %d released!", a.English, a.EpisodesAired))
+					outputMsg.DisableWebPagePreview = true
+
+					bot.Send(outputMsg)
+
+					// subscriptions.SetLastEpisode(ctx, db, s.ID, a.EpisodesAired)
+
+					ss := subscriptions.FindAll(ctx, db, user.TelegramID)
+
+					for _, s := range ss {
+						logger.Info("Subscrtiption",
+							"Telegram ID", s.TelegramID,
+							"Shiki ID", s.ShikiID)
+					}
+
+					testNewEpisode = false
 				}
+
 			}
 		}
 	}
@@ -674,7 +737,7 @@ func StartBotAndHandleUpdates(ctx context.Context, cancel context.CancelFunc,
 
 	// Start a goroutine to handle periodic user processing every second
 	go func() {
-		ticker := time.NewTicker(30 * time.Second)
+		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
