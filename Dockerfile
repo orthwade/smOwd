@@ -1,5 +1,5 @@
-# Use the same Go version for building and running
-FROM golang:1.23.3
+# Build stage
+FROM golang:1.23.3 AS builder
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ COPY . .
 # Build the Go binary
 RUN go build -o main .
 
-# Now, create the runtime image with the same base image
+# Runtime stage
 FROM golang:1.23.3
 
 WORKDIR /app

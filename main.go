@@ -21,6 +21,13 @@ import (
 
 func LoadEnv(ctx context.Context) {
 	logger := logs.DefaultFromCtx(ctx)
+
+	dir, err := os.Getwd()
+	if err != nil {
+		logger.Fatal("Error getting current directory", "error", err)
+	}
+	logger.Info("Current working directory", "dir", dir)
+
 	if err := godotenv.Load(); err != nil {
 		logger.Fatal("Error loading .env file", "error", err)
 	} else {

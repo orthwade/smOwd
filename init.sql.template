@@ -1,29 +1,8 @@
--- init.sql.template
+-- Create the user from the environment variable DB_USER (user_app)
+CREATE USER ${DB_USER} WITH PASSWORD '${DB_PASSWORD}';
 
--- Create custom type if it doesn't already exist
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'anime_id_and_last_episode') THEN
-        CREATE TYPE anime_id_and_last_episode AS (
-            anime_id INT,
-            last_episode INT
-        );
-    END IF;
-END $$;
+-- Create the database from the environment variable DB_NAME (subscriptions_db)
+CREATE DATABASE ${DB_NAME} OWNER ${DB_USER};
 
--- Check if the database exists, if not, create it
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '{{DB_NAME}}') THEN
-        CREATE DATABASE {{DB_NAME}};
-    END IF;
-END $$;
-
--- Check if the user exists, if not, create it
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{{DB_USER}}') THEN
-        CREATE USER {{DB_USER}} WITH PASSWORD '{{DB_PASSWORD}}';
-    END IF;
-END $$;
-
--- Grant privileges if the user and database exist
-GRANT ALL PRIVILEGES ON DATABASE {{DB_NAME}} TO {{DB_USER}};
-
+-- Grant privileges on the database to the new user
+GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_USER};
