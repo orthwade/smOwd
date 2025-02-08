@@ -118,6 +118,10 @@ func FindByTelegramID(ctx context.Context, db *sql.DB, telegramID int) *User {
 	return Find(ctx, db, "telegram_id", telegramID)
 }
 
+func FindByChatID(ctx context.Context, db *sql.DB, telegramID int) *User {
+	return Find(ctx, db, "chat_id", telegramID)
+}
+
 func Remove(ctx context.Context, db *sql.DB, id int) error {
 	return pql.RemoveRecord(ctx, db, tableName, id)
 }

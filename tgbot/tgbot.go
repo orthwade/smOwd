@@ -151,6 +151,7 @@ func generalMessage(chatID int, notificationsEnabled bool) *tgbotapi.MessageConf
 // Unified function to handle both messages and inline button callbacks
 func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 	update tgbotapi.Update, db *sql.DB) {
+
 	// Retrieve the logger from the context
 	logger, ok := ctx.Value("logger").(*logs.Logger)
 	if !ok {
@@ -167,7 +168,9 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 
 	skip := true
 	if update.Message != nil {
+
 		tgbotUser = update.Message.From
+
 		telegramID = update.Message.From.ID
 		chatID = int(update.Message.Chat.ID)
 		messageText = misc.RemoveFirstCharIfPresent(update.Message.Text, '/')
@@ -176,6 +179,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 
 	} else if update.CallbackQuery != nil { // Handle inline button callback queries
 		tgbotUser = update.CallbackQuery.Message.From
+
 		telegramID = update.CallbackQuery.From.ID
 		chatID = int(update.CallbackQuery.Message.Chat.ID)
 		messageText = update.CallbackQuery.Data
@@ -183,7 +187,7 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 		defer bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, "Done"))
 	}
 	if !skip {
-		user = users.FindByTelegramID(ctx, db, telegramID)
+		user = users.FindByChatID(ctx, db, chatID)
 
 		if user == nil {
 			logger.Info("New user", "tg_name", tgbotUser.UserName)
@@ -427,6 +431,9 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 			col := 0
 
 			var tgMsgText string
+			var tgMsg tgbotapi.MessageConfig
+
+			multipleMessages := false
 
 			for i, anime := range session.sliceAnime {
 				animeStr := strconv.Itoa(i+1) + ". " + anime.English + " / " + anime.URL + "\n"
@@ -448,20 +455,49 @@ func handleUpdate(ctx context.Context, bot *tgbotapi.BotAPI,
 				}
 
 				tgMsgText += animeStr
+
+				if len(tgMsgText) > 3000 {
+					if len(buttons) > 0 {
+						keyboard = append(keyboard, buttons)
+					}
+					buttons = []tgbotapi.InlineKeyboardButton{}
+					buttons = append(buttons,
+						tgbotapi.NewInlineKeyboardButtonData("Cancel", "cancel"))
+
+					keyboard = append(keyboard, buttons)
+
+					tgMsg = tgbotapi.NewMessage(int64(chatID), tgMsgText)
+					tgMsg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(keyboard...)
+					tgMsg.DisableWebPagePreview = true
+					bot.Send(tgMsg)
+
+					keyboard = [][]tgbotapi.InlineKeyboardButton{}
+					buttons = []tgbotapi.InlineKeyboardButton{}
+					tgMsgText = ""
+
+					if i < len(session.sliceAnime) {
+						multipleMessages = true
+					} else {
+						multipleMessages = false
+					}
+				}
 			}
-			if len(buttons) > 0 {
+
+			if multipleMessages {
+				if len(buttons) > 0 {
+					keyboard = append(keyboard, buttons)
+				}
+				buttons = []tgbotapi.InlineKeyboardButton{}
+				buttons = append(buttons,
+					tgbotapi.NewInlineKeyboardButtonData("Cancel", "cancel"))
+
 				keyboard = append(keyboard, buttons)
+
+				tgMsg = tgbotapi.NewMessage(int64(chatID), tgMsgText)
+				tgMsg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(keyboard...)
+				tgMsg.DisableWebPagePreview = true
+				bot.Send(tgMsg)
 			}
-			buttons = []tgbotapi.InlineKeyboardButton{}
-			buttons = append(buttons,
-				tgbotapi.NewInlineKeyboardButtonData("Cancel", "cancel"))
-
-			keyboard = append(keyboard, buttons)
-
-			tgMsg := tgbotapi.NewMessage(int64(chatID), tgMsgText)
-			tgMsg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(keyboard...)
-			tgMsg.DisableWebPagePreview = true
-			bot.Send(tgMsg)
 
 			*updateMode = handleUpdateModeSubscribe
 			session.lastTgMsg = tgMsg

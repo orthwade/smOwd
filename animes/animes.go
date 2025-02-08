@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"regexp"
 	"smOwd/logs"
+	"unicode"
 
 	"strings"
 	"time"
@@ -27,6 +27,7 @@ type Anime struct {
 	ShikiID       string `json:"id"`
 	MalID         string `json:"malId"`
 	English       string `json:"english"`
+	Russian       string `json:"russian"`
 	Japanese      string `json:"japanese"`
 	Status        string `json:"status"`
 	Episodes      int    `json:"episodes"`
@@ -50,22 +51,34 @@ func splitWords(input string) []string {
 	return words
 }
 
+func isWholeWord(word, sentence string) bool {
+	sentenceRunes := []rune(sentence)
+	wordRunes := []rune(word)
+	wordLen := len(wordRunes)
+
+	for i := 0; i <= len(sentenceRunes)-wordLen; i++ {
+		// Check if the substring matches the word
+		if string(sentenceRunes[i:i+wordLen]) == word {
+			// Ensure it's a whole word by checking surrounding characters
+			isStartBoundary := i == 0 || !unicode.IsLetter(sentenceRunes[i-1])
+			isEndBoundary := i+wordLen == len(sentenceRunes) || !unicode.IsLetter(sentenceRunes[i+wordLen])
+			if isStartBoundary && isEndBoundary {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// containsAllWords checks if all words in the input exist as whole words in the sentence
 func containsAllWords(input, sentence string) bool {
 	words := splitWords(input)
 
-	// Normalize the sentence to lowercase for case-insensitive matching
+	// Normalize case for case-insensitive matching
 	sentence = strings.ToLower(sentence)
 
-	// Loop through each word and use regex for whole-word matching
 	for _, word := range words {
-		// Build a regex pattern to match the whole word
-		pattern := fmt.Sprintf(`\b%s\b`, regexp.QuoteMeta(strings.ToLower(word)))
-
-		// Compile the regex
-		re := regexp.MustCompile(pattern)
-
-		// Check if the word is in the sentence
-		if !re.MatchString(sentence) {
+		if !isWholeWord(strings.ToLower(word), sentence) {
 			return false
 		}
 	}
@@ -79,7 +92,8 @@ func SearchAnimeByName(ctx context.Context, name string) ([]Anime, error) {
 		animes(search: "%s", limit: 500) {
 			id       
 			malId    
-			english   
+			english 
+			russian  
 			japanese 
 			status
 			episodes 
@@ -138,6 +152,8 @@ func SearchAnimeByName(ctx context.Context, name string) ([]Anime, error) {
 	for _, a := range animeResponse.Data.Animes {
 		if containsAllWords(name, a.English) {
 			result = append(result, a)
+		} else if containsAllWords(name, a.Russian) {
+			result = append(result, a)
 		}
 	}
 
@@ -153,7 +169,8 @@ func SearchAnimeByShikiIDs(ctx context.Context, shikiIDs []string) ([]Anime, err
 		animes(ids: $ids, limit: %d) {
 			id       
 			malId    
-			english   
+			english
+			russian   
 			japanese 
 			status
 			episodes 
